@@ -208,10 +208,8 @@ describe('Room game flow', () => {
     room.vote(C, B);
     room.vote(B, A);
     room.expire(room.version, now + TEST_OPTION.voteMs);
-    expect(phase(room, PhaseType.End)).toMatchObject({
-      result: { accusedId: B, winner: Role.Mafia },
-      deadline: now + TEST_OPTION.voteMs + TEST_OPTION.endMs,
-    });
+    expect(phase(room, PhaseType.End)).toMatchObject({ result: { accusedId: B, winner: Role.Mafia } });
+    expect(room.deadline).toBeNull();
   });
 
   it('an unfinished vote is tallied at the deadline', () => {
@@ -237,13 +235,13 @@ describe('Room game flow', () => {
     expect(codeOf(() => room.typeAnswer(A, '도시'))).toBe(GameErrorCode.NotYourTurn);
     expect(room.typeAnswer(C, '도')).toEqual([{ type: RoomEventType.AnswerTyped, mafiaId: C, answer: '도' }]);
     expect(phase(room, PhaseType.Answer).typing).toBe('도');
-    room.submitAnswer(C, ' 도시 ', now);
+    room.submitAnswer(C, ' 도시 ');
     expect(phase(room, PhaseType.End).result).toEqual({ mafiaId: C, accusedId: C, mafiaGuess: ' 도시 ', winner: Role.Mafia });
   });
 
   it('a synonym of the keyword also wins for the mafia', () => {
     const { room, now } = answeringRoom();
-    room.submitAnswer(C, '시내', now);
+    room.submitAnswer(C, '시내');
     expect(phase(room, PhaseType.End).result).toMatchObject({ mafiaGuess: '시내', winner: Role.Mafia });
   });
 
@@ -254,29 +252,29 @@ describe('Room game flow', () => {
     expect(phase(room, PhaseType.End).result).toMatchObject({ mafiaGuess: '바다', winner: Role.Citizen });
   });
 
-  it('back to WAIT removes players still away and hands over the host', () => {
+  it('closing a finished game empties the room back to WAIT', () => {
     const { room, now } = answeringRoom();
-    room.submitAnswer(C, '도시', now);
-    room.setConnected(A, false, now);
-    expect(room.playAgain(now)).toEqual([{ type: RoomEventType.PhaseChanged }]);
+    room.submitAnswer(C, '도시');
+    expect(room.isOver).toBe(true);
+    room.closeGame(now);
     expect(room.phase).toEqual({ type: PhaseType.Wait });
-    expect(room.players.map((p) => p.userId)).toEqual([B, C]);
-    expect(room.hostId).toBe(B);
+    expect(room.isEmpty).toBe(true);
+    expect(room.emptySince).toBe(now);
     expect(room.deadline).toBeNull();
   });
 
-  it('play again only from END', () => {
+  it('only a finished game can be closed', () => {
     const { room, now } = drawingRoom();
-    expect(codeOf(() => room.playAgain(now))).toBe(GameErrorCode.InvalidPhase);
+    expect(codeOf(() => room.closeGame(now))).toBe(GameErrorCode.InvalidPhase);
   });
 
-  it('the END deadline empties a room nobody came back to', () => {
+  it('the first player back into an emptied room becomes host', () => {
     const { room, now } = answeringRoom();
-    room.submitAnswer(C, '도시', now);
-    for (const id of [A, B, C]) {
-      room.setConnected(id, false, now);
-    }
-    room.expire(room.version, room.deadline!);
-    expect(room.isEmpty).toBe(true);
+    room.submitAnswer(C, '도시');
+    room.closeGame(now);
+    expect(room.addPlayer(B, NICK)).toEqual([{ type: RoomEventType.PlayersChanged }]);
+    room.addPlayer(A, NICK);
+    expect(room.hostId).toBe(B);
+    expect(room.players.map((p) => p.userId)).toEqual([B, A]);
   });
 });

@@ -18,5 +18,4 @@ export interface GameOption {
   readonly strokesPerTurn: number;
   readonly voteMs: number;
   readonly answerMs: number;
-  readonly endMs: number;
 }

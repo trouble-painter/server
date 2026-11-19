@@ -62,7 +62,7 @@ const phase = z.discriminatedUnion('type', [
     deadline: time,
   }),
   z.object({ type: z.literal(PhaseType.Answer), game, sketches: z.array(sketch), typing: z.string(), deadline: time }),
-  z.object({ type: z.literal(PhaseType.End), game, sketches: z.array(sketch), result, deadline: time }),
+  z.object({ type: z.literal(PhaseType.End), game, sketches: z.array(sketch), result }),
 ]);
 
 const count = z.number().int().min(0);
@@ -84,7 +84,6 @@ export const RoomSnapshotSchema: z.ZodType<RoomSnapshot> = z.object({
     strokesPerTurn: count,
     voteMs: count,
     answerMs: count,
-    endMs: count,
   }),
   hostId: userId,
   players: z.array(

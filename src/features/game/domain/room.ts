@@ -23,7 +23,6 @@ export interface Player {
 
 const PLAYERS_CHANGED: RoomEvent = { type: RoomEventType.PlayersChanged };
 const PHASE_CHANGED: RoomEvent = { type: RoomEventType.PhaseChanged };
-const ROOM_CLOSED: RoomEvent = { type: RoomEventType.RoomClosed };
 
 type PhaseOf<T extends PhaseType> = Extract<Phase, { type: T }>;
 
@@ -106,24 +105,29 @@ export class Room {
     return this.#version;
   }
 
-  /** When the current phase or turn ends on its own; null while waiting. */
+  /** When the current phase or turn ends on its own; null while waiting or once the game is over. */
   get deadline(): number | null {
     const phase = this.#phase;
     switch (phase.type) {
       case PhaseType.Wait:
+      case PhaseType.End:
         return null;
       case PhaseType.Drawing:
         return phase.turn.deadline;
       case PhaseType.Ready:
       case PhaseType.Vote:
       case PhaseType.Answer:
-      case PhaseType.End:
         return phase.deadline;
     }
   }
 
   get isInGame(): boolean {
     return this.#phase.type !== PhaseType.Wait;
+  }
+
+  /** The result is out and the caller should {@link closeGame}. */
+  get isOver(): boolean {
+    return this.#phase.type === PhaseType.End;
   }
 
   get isEmpty(): boolean {
@@ -148,8 +152,12 @@ export class Room {
     }
   }
 
+  /** The first player into an empty room becomes its host. */
   addPlayer(userId: UserId, nickname: Nickname): RoomEvent[] {
     this.assertJoinable();
+    if (this.#players.length === 0) {
+      this.#hostId = userId;
+    }
     const used = new Set(this.#players.map((p) => p.color));
     const color = PLAYER_COLORS.find((c) => !used.has(c));
     if (color === undefined) {
@@ -255,16 +263,16 @@ export class Room {
     return [{ type: RoomEventType.AnswerTyped, mafiaId: userId, answer }];
   }
 
-  submitAnswer(userId: UserId, answer: string, now: number): RoomEvent[] {
-    return this.#judgeAnswer(this.#mafiaAnswerPhase(userId), answer, now);
+  submitAnswer(userId: UserId, answer: string): RoomEvent[] {
+    return this.#judgeAnswer(this.#mafiaAnswerPhase(userId), answer);
   }
 
-  playAgain(now: number): RoomEvent[] {
+  /** Everyone leaves once the result is out, so playing again means joining the room afresh. */
+  closeGame(now: number): void {
     this.#phaseOf(PhaseType.End);
-    if (this.isQuickStart) {
-      throw new GameError(GameErrorCode.InvalidPhase);
-    }
-    return this.#backToWait(now);
+    this.#players.length = 0;
+    this.#enter({ type: PhaseType.Wait });
+    this.#updateEmptySince(now);
   }
 
   /** Moves on when the deadline armed at `version` passes; does nothing if the room has moved on since. */
@@ -275,6 +283,7 @@ export class Room {
     const phase = this.#phase;
     switch (phase.type) {
       case PhaseType.Wait:
+      case PhaseType.End:
         return [];
       case PhaseType.Ready: {
         const drawerId = this.#drawerAt(phase.game, 0);
@@ -287,10 +296,7 @@ export class Room {
       case PhaseType.Vote:
         return this.#tally(phase, now);
       case PhaseType.Answer:
-        return this.#judgeAnswer(phase, phase.typing, now);
-      case PhaseType.End:
-        // A quick-start room is only for one game.
-        return this.isQuickStart ? [ROOM_CLOSED] : this.#backToWait(now);
+        return this.#judgeAnswer(phase, phase.typing);
     }
   }
 
@@ -307,6 +313,8 @@ export class Room {
     const phase = this.#phase;
     switch (phase.type) {
       case PhaseType.Wait:
+      // The caller closes a finished game instead.
+      case PhaseType.End:
         return;
       case PhaseType.Drawing:
         this.#phase = { ...phase, turn: { ...phase.turn, deadline: Math.max(phase.turn.deadline, earliest) } };
@@ -314,7 +322,6 @@ export class Room {
       case PhaseType.Ready:
       case PhaseType.Vote:
       case PhaseType.Answer:
-      case PhaseType.End:
         this.#phase = { ...phase, deadline: Math.max(phase.deadline, earliest) };
         return;
     }
@@ -342,26 +349,17 @@ export class Room {
       this.#enter({ type: PhaseType.Answer, game, sketches, typing: '', deadline: now + this.option.answerMs });
       return [PHASE_CHANGED];
     }
-    return this.#end(game, sketches, { mafiaId: game.mafiaId, accusedId, mafiaGuess: null, winner: Role.Mafia }, now);
+    return this.#end(game, sketches, { mafiaId: game.mafiaId, accusedId, mafiaGuess: null, winner: Role.Mafia });
   }
 
-  #judgeAnswer(phase: PhaseOf<PhaseType.Answer>, guess: string, now: number): RoomEvent[] {
+  #judgeAnswer(phase: PhaseOf<PhaseType.Answer>, guess: string): RoomEvent[] {
     const { game, sketches } = phase;
     const winner = isCorrectGuess(guess, game.keyword) ? Role.Mafia : Role.Citizen;
-    return this.#end(game, sketches, { mafiaId: game.mafiaId, accusedId: game.mafiaId, mafiaGuess: guess, winner }, now);
+    return this.#end(game, sketches, { mafiaId: game.mafiaId, accusedId: game.mafiaId, mafiaGuess: guess, winner });
   }
 
-  #end(game: Game, sketches: readonly Sketch[], result: Result, now: number): RoomEvent[] {
-    this.#enter({ type: PhaseType.End, game, sketches, result, deadline: now + this.option.endMs });
-    return [PHASE_CHANGED];
-  }
-
-  /** Players still away when the game is over leave the room; the room may end up empty. */
-  #backToWait(now: number): RoomEvent[] {
-    for (const player of this.#players.filter((p) => !p.isConnected)) {
-      this.removePlayer(player.userId, now);
-    }
-    this.#enter({ type: PhaseType.Wait });
+  #end(game: Game, sketches: readonly Sketch[], result: Result): RoomEvent[] {
+    this.#enter({ type: PhaseType.End, game, sketches, result });
     return [PHASE_CHANGED];
   }
 

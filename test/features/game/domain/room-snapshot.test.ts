@@ -41,7 +41,7 @@ describe('Room.resumeAfterRestart', () => {
     expect(room.emptySince).toBe(T0);
   });
 
-  it.each([PhaseType.Ready, PhaseType.Drawing, PhaseType.Vote, PhaseType.Answer, PhaseType.End])(
+  it.each([PhaseType.Ready, PhaseType.Drawing, PhaseType.Vote, PhaseType.Answer])(
     'pushes a passed %s deadline to now + grace and leaves a later one alone',
     (type) => {
       const late = roomsInEveryPhase()[type];

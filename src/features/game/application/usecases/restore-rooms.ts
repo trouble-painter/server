@@ -1,4 +1,5 @@
 import type { Clock } from '../../../../shared/application/ports/clock.js';
+import { closeGame } from '../game-end.js';
 import type { Membership } from '../membership.js';
 import type { PhaseTimer } from '../phase-timer.js';
 import type { RoomRepository } from '../ports/room-repository.js';
@@ -18,6 +19,11 @@ export class RestoreRooms {
   execute(): void {
     const now = this.clock.now();
     for (const room of this.rooms.all()) {
+      // Saved between sending a result and closing the game.
+      if (room.isOver) {
+        closeGame(this.rooms, room, now);
+        continue;
+      }
       room.resumeAfterRestart(now, this.restoreGraceMs);
       this.rooms.save(room);
       this.timer.sync(room);

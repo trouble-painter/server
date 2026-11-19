@@ -50,7 +50,6 @@ describe('room presenter', () => {
       strokesPerTurn: 2,
       voteMs: 30_000,
       answerMs: 20_000,
-      endMs: 15_000,
     });
   });
 
@@ -107,13 +106,6 @@ describe('room presenter', () => {
     expect(eventMessage(room, typed, A)).toEqual({ type: 'ANSWER_TYPING', data: { answer: '도' } });
     const votes = { type: RoomEventType.VotesChanged, votes: new Map([[A, C]]) } as const;
     expect(eventMessage(room, votes, A)).toEqual({ type: 'VOTES', data: { votes: { '1': 3 } } });
-  });
-
-  it('closes a room with IDLE ROOM_CLOSED', () => {
-    expect(eventMessage(startedRoom(), { type: RoomEventType.RoomClosed }, A)).toEqual({
-      type: 'IDLE',
-      data: { reason: 'ROOM_CLOSED' },
-    });
   });
 
   it('HELLO carries the queue status of a queued user', () => {

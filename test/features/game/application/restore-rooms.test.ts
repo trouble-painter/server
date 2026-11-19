@@ -70,4 +70,13 @@ describe('RestoreRooms', () => {
     }
     expect(rooms.get(room.id)).toBeNull();
   });
+
+  it('closes a game saved with its result out', () => {
+    const room = load(roomsInEveryPhase()[PhaseType.End]);
+    restore.execute();
+    expect(room.phase.type).toBe(PhaseType.Wait);
+    expect(room.isEmpty).toBe(true);
+    expect(rooms.get(room.id)).toBe(room);
+    expect(rooms.findByUser(A)).toBeNull();
+  });
 });

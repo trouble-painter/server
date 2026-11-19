@@ -16,7 +16,6 @@ export const TEST_OPTION: GameOption = {
   strokesPerTurn: 2,
   voteMs: 30_000,
   answerMs: 20_000,
-  endMs: 15_000,
 };
 
 export const TEST_LIMITS: Limits = {

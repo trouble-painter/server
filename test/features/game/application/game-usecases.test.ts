@@ -8,7 +8,6 @@ import { CreateRoom } from '../../../../src/features/game/application/usecases/c
 import { EndTurn } from '../../../../src/features/game/application/usecases/end-turn.js';
 import { JoinRoom } from '../../../../src/features/game/application/usecases/join-room.js';
 import { LeaveRoom } from '../../../../src/features/game/application/usecases/leave-room.js';
-import { PlayAgain } from '../../../../src/features/game/application/usecases/play-again.js';
 import { React } from '../../../../src/features/game/application/usecases/react.js';
 import { StartGame } from '../../../../src/features/game/application/usecases/start-game.js';
 import { StartQuickStartGame } from '../../../../src/features/game/application/usecases/start-quick-start-game.js';
@@ -149,28 +148,21 @@ describe('game use cases', () => {
     expect(publisher.events).toEqual([RoomEventType.PhaseChanged, RoomEventType.PlayersChanged]);
   });
 
-  it('play again disarms the timer and drops players who left', () => {
+  it('after the result everyone leaves, and the empty room stays for playing again', () => {
     start();
-    new LeaveRoom(rooms, membership, publisher, clock).execute(B);
-    while (room.phase.type !== PhaseType.End) {
+    while (room.deadline !== null) {
       fireDeadline();
     }
-    new PlayAgain(rooms, publisher, timer, clock).execute(A);
+    expect(publisher.events.at(-1)).toBe(RoomEventType.PhaseChanged);
     expect(room.phase.type).toBe(PhaseType.Wait);
-    expect(room.players.map((p) => p.userId)).toEqual([A, C]);
-    expect(rooms.findByUser(B)).toBeNull();
+    expect(room.isEmpty).toBe(true);
+    expect(rooms.get(room.id)).toBe(room);
+    expect([A, B, C].map((id) => rooms.findByUser(id))).toEqual([null, null, null]);
     expect(scheduler.tasks.has(phaseTimerKey(room.id))).toBe(false);
-  });
 
-  it('deletes the room when the game ends with nobody connected', () => {
-    start();
-    for (const id of [A, B, C]) {
-      room.setConnected(id, false, clock.now());
-    }
-    while (rooms.get(room.id) !== null) {
-      fireDeadline();
-    }
-    expect(rooms.findByUser(A)).toBeNull();
+    new JoinRoom(rooms, membership, new RecordingQueue(), publisher).execute(B, room.id, NICK);
+    expect(room.hostId).toBe(B);
+    expect(rooms.findByUser(B)).toBe(room);
   });
 
   it('throttles reactions per user without an error', () => {
@@ -198,7 +190,7 @@ describe('game use cases', () => {
     expect(scheduler.tasks.has(phaseTimerKey(room.id))).toBe(false);
   });
 
-  it('a quick-start game starts at once and closes its room after END', () => {
+  it('a quick-start game starts at once and deletes its room once the result is out', () => {
     const quickStart = new StartQuickStartGame(
       rooms,
       publisher,
@@ -221,12 +213,10 @@ describe('game use cases', () => {
     expect(quick.phase.type).toBe(PhaseType.Ready);
     expect(publisher.events).toEqual([RoomEventType.PhaseChanged]);
 
-    while (quick.phase.type !== PhaseType.End) {
+    while (quick.deadline !== null) {
       scheduler.fire(phaseTimerKey(quick.id));
     }
-    publisher.events.length = 0;
-    scheduler.fire(phaseTimerKey(quick.id));
-    expect(publisher.events).toEqual([RoomEventType.RoomClosed]);
+    expect(publisher.events.at(-1)).toBe(RoomEventType.PhaseChanged);
     expect(rooms.get(quick.id)).toBeNull();
     expect(rooms.findByUser(D)).toBeNull();
     expect(scheduler.tasks.has(phaseTimerKey(quick.id))).toBe(false);

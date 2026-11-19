@@ -17,7 +17,6 @@ export enum ClientMessageType {
   Vote = 'VOTE',
   TypeAnswer = 'TYPE_ANSWER',
   SubmitAnswer = 'SUBMIT_ANSWER',
-  PlayAgain = 'PLAY_AGAIN',
   MatchJoin = 'MATCH_JOIN',
   MatchCancel = 'MATCH_CANCEL',
   PushToken = 'PUSH_TOKEN',
@@ -41,7 +40,6 @@ export enum ServerMessageType {
 export enum IdleReason {
   Left = 'LEFT',
   MatchCanceled = 'MATCH_CANCELED',
-  RoomClosed = 'ROOM_CLOSED',
 }
 
 export enum WireErrorCode {

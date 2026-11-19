@@ -57,7 +57,6 @@ const EnvSchema = z.object({
   GAME_STROKES_PER_TURN: positiveInt,
   GAME_VOTE_MS: positiveInt,
   GAME_ANSWER_MS: positiveInt,
-  GAME_END_MS: positiveInt,
   DRAW_THROTTLE_MS: positiveInt,
   REACTION_THROTTLE_MS: positiveInt,
   MAX_STROKE_POINTS: positiveInt,

@@ -17,7 +17,6 @@ const FAST = {
   GAME_TURN_MS: '5000',
   GAME_VOTE_MS: '5000',
   GAME_ANSWER_MS: '5000',
-  GAME_END_MS: '5000',
 };
 
 const STROKE = { x: [1, 2], y: [3, 4], t: [0, 16] };
@@ -92,7 +91,7 @@ describe('WebSocket game', () => {
     return { mafia, ready, order: (phase.game.turnOrder as number[]).map(byId), turn: phase.turn };
   }
 
-  it('plays a game from START_GAME to PLAY_AGAIN', async () => {
+  it('plays a game from START_GAME to the result, then lets players join the room again', async () => {
     // The vote waits for its deadline even when everyone has voted.
     await boot({ GAME_VOTE_MS: '500' });
     const players = await threePlayers();
@@ -146,10 +145,13 @@ describe('WebSocket game', () => {
     });
     expect(end[0]!.data.room.phase.result.answer).toBe(ready[0]!.data.room.phase.game.keyword ?? ready[1]!.data.room.phase.game.keyword);
 
-    citizens[1]!.client.send('PLAY_AGAIN');
-    const wait = await expectNext(players, 'ROOM');
-    expect(wait[0]!.data.room.phase).toEqual({ type: 'WAIT' });
     expect(players.every((p) => p.client.pending === 0)).toBe(true);
+
+    // Everyone left with the result: the first one back is host of the emptied room.
+    const roomId = end[0]!.data.room.id;
+    const again = await citizens[1]!.client.request('JOIN_ROOM', { roomId, nickname: 'B' });
+    expect(again.data.room).toMatchObject({ id: roomId, hostId: citizens[1]!.userId, phase: { type: 'WAIT' } });
+    expect(again.data.room.players).toHaveLength(1);
   });
 
   it('clearing a sketch tells the others and lets the drawer start again from index 0', async () => {
@@ -172,8 +174,8 @@ describe('WebSocket game', () => {
     expect(players.every((p) => p.client.pending === 0)).toBe(true);
   });
 
-  it('runs on deadlines alone: an empty vote lets the mafia win, then the room waits again', async () => {
-    await boot({ GAME_TURN_MS: '30', GAME_VOTE_MS: '30', GAME_END_MS: '30' });
+  it('runs on deadlines alone: an empty vote lets the mafia win', async () => {
+    await boot({ GAME_TURN_MS: '30', GAME_VOTE_MS: '30' });
     const players = await threePlayers();
     const { mafia } = await startGame(players);
     await expectNext(players, 'TURN');
@@ -181,7 +183,8 @@ describe('WebSocket game', () => {
     expect((await expectNext(players, 'ROOM'))[0]!.data.room.phase.type).toBe('VOTE');
     const [end] = await expectNext(players, 'ROOM');
     expect(end!.data.room.phase.result).toMatchObject({ mafiaId: mafia.userId, accusedId: null, winner: 'MAFIA' });
-    expect((await expectNext(players, 'ROOM'))[0]!.data.room.phase).toEqual({ type: 'WAIT' });
+    const { hello } = await connect(mafia.accessToken);
+    expect(hello.data.room).toBeNull();
   });
 
   it('a reconnecting player gets the turn in progress, with their own view', async () => {

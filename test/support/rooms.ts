@@ -68,7 +68,7 @@ export function roomsInEveryPhase(): Record<PhaseType, Room> {
   const end = votingRoom();
   end.vote(B, C);
   end.expire(end.version, end.deadline!);
-  end.submitAnswer(C, '도시', end.deadline! - 1);
+  end.submitAnswer(C, '도시');
 
   return {
     [PhaseType.Wait]: wait,

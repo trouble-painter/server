@@ -81,10 +81,10 @@ export type Phase =
       readonly typing: string;
       readonly deadline: number;
     }
+  /** Lasts only until the result is sent: then everyone leaves the room. */
   | {
       readonly type: PhaseType.End;
       readonly game: Game;
       readonly sketches: readonly Sketch[];
       readonly result: Result;
-      readonly deadline: number;
     };

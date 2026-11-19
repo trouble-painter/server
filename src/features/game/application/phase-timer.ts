@@ -1,8 +1,8 @@
 import type { Clock } from '../../../shared/application/ports/clock.js';
 import type { Scheduler } from '../../../shared/application/ports/scheduler.js';
 import type { RoomCode } from '../../../shared/domain/room-code.js';
-import { RoomEventType } from '../domain/room-event.js';
 import type { Room } from '../domain/room.js';
+import { closeGame } from './game-end.js';
 import type { RoomEventPublisher } from './ports/room-event-publisher.js';
 import type { RoomRepository } from './ports/room-repository.js';
 
@@ -38,21 +38,16 @@ export class PhaseTimer {
     if (room === null) {
       return;
     }
-    const events = room.expire(version, this.clock.now());
+    const now = this.clock.now();
+    const events = room.expire(version, now);
     if (events.length === 0) {
-      return;
-    }
-    if (events.some((e) => e.type === RoomEventType.RoomClosed)) {
-      this.publisher.publish(room, events);
-      this.rooms.delete(room);
-      return;
-    }
-    if (room.isEmpty) {
-      this.rooms.delete(room);
       return;
     }
     this.rooms.save(room);
     this.publisher.publish(room, events);
+    if (room.isOver) {
+      closeGame(this.rooms, room, now);
+    }
     this.sync(room);
   }
 }

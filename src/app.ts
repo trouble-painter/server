@@ -21,7 +21,6 @@ import { EndTurn } from './features/game/application/usecases/end-turn.js';
 import { GetPlayingRoom } from './features/game/application/usecases/get-playing-room.js';
 import { JoinRoom } from './features/game/application/usecases/join-room.js';
 import { LeaveRoom } from './features/game/application/usecases/leave-room.js';
-import { PlayAgain } from './features/game/application/usecases/play-again.js';
 import { React } from './features/game/application/usecases/react.js';
 import { RestoreRooms } from './features/game/application/usecases/restore-rooms.js';
 import { StartGame } from './features/game/application/usecases/start-game.js';
@@ -69,7 +68,6 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     strokesPerTurn: env.GAME_STROKES_PER_TURN,
     voteMs: env.GAME_VOTE_MS,
     answerMs: env.GAME_ANSWER_MS,
-    endMs: env.GAME_END_MS,
   };
   const limits: Limits = {
     drawThrottleMs: env.DRAW_THROTTLE_MS,
@@ -141,7 +139,6 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     vote: new Vote(rooms, publisher),
     typeAnswer: new TypeAnswer(rooms, publisher),
     submitAnswer: new SubmitAnswer(rooms, publisher, timer, clock),
-    playAgain: new PlayAgain(rooms, publisher, timer, clock),
     gameStartPush,
   });
   registerMatchingHandlers(router, { matchmaking });

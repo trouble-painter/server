@@ -47,7 +47,6 @@ function optionView(option: GameOption) {
     strokesPerTurn: option.strokesPerTurn,
     voteMs: option.voteMs,
     answerMs: option.answerMs,
-    endMs: option.endMs,
   };
 }
 
@@ -99,7 +98,6 @@ function phaseView(phase: Phase, viewer: UserId) {
         game: gameView(phase.game, viewer),
         sketches: phase.sketches.map(sketchView),
         result: resultView(phase.result, phase.game.keyword.word),
-        deadline: phase.deadline,
       };
   }
 }
@@ -210,7 +208,5 @@ export function eventMessage(room: Room, event: RoomEvent, viewer: UserId): Serv
       return { type: ServerMessageType.Votes, data: { votes: votesView(event.votes) } };
     case RoomEventType.AnswerTyped:
       return viewer === event.mafiaId ? null : { type: ServerMessageType.AnswerTyping, data: { answer: event.answer } };
-    case RoomEventType.RoomClosed:
-      return idleMessage(IdleReason.RoomClosed);
   }
 }

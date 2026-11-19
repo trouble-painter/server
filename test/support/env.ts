@@ -22,7 +22,6 @@ export const TEST_ENV_SOURCE: Readonly<Record<string, string>> = {
   GAME_STROKES_PER_TURN: '1',
   GAME_VOTE_MS: '30000',
   GAME_ANSWER_MS: '20000',
-  GAME_END_MS: '15000',
   DRAW_THROTTLE_MS: '50',
   REACTION_THROTTLE_MS: '500',
   MAX_STROKE_POINTS: '500',

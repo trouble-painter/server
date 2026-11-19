@@ -6,7 +6,6 @@ import type { GameStartPush } from '../../application/game-start-push.js';
 import type { ClearSketch } from '../../application/usecases/clear-sketch.js';
 import type { DrawStroke } from '../../application/usecases/draw-stroke.js';
 import type { EndTurn } from '../../application/usecases/end-turn.js';
-import type { PlayAgain } from '../../application/usecases/play-again.js';
 import type { React } from '../../application/usecases/react.js';
 import type { StartGame } from '../../application/usecases/start-game.js';
 import type { SubmitAnswer } from '../../application/usecases/submit-answer.js';
@@ -49,7 +48,6 @@ export function registerGameHandlers(
     vote: Vote;
     typeAnswer: TypeAnswer;
     submitAnswer: SubmitAnswer;
-    playAgain: PlayAgain;
     gameStartPush: GameStartPush;
   },
 ): void {
@@ -93,10 +91,6 @@ export function registerGameHandlers(
   });
   router.register(ClientMessageType.SubmitAnswer, answer, (userId, data) => {
     deps.submitAnswer.execute(userId, data.answer);
-    return null;
-  });
-  router.register(ClientMessageType.PlayAgain, z.object({}), (userId) => {
-    deps.playAgain.execute(userId);
     return null;
   });
 }

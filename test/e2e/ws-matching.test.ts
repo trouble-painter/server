@@ -15,7 +15,6 @@ const FAST = {
   GAME_TURN_MS: '30',
   GAME_VOTE_MS: '30',
   GAME_ANSWER_MS: '30',
-  GAME_END_MS: '30',
 };
 
 interface Player {
@@ -61,7 +60,7 @@ describe('WebSocket quick start', () => {
     }
   }
 
-  it('matches three players at the deadline and closes the room after the game', async () => {
+  it('matches three players at the deadline and deletes the room once the result is out', async () => {
     await boot();
     const [a, b, c] = [await user(), await user(), await user()];
 
@@ -84,7 +83,10 @@ describe('WebSocket quick start', () => {
       expect(ready.data.room.players.map((p: { id: number }) => p.id)).toEqual([a.userId, b.userId, c.userId]);
     }
     for (const player of [a, b, c]) {
-      expect(await nextOfType(player.client, 'IDLE')).toEqual({ type: 'IDLE', data: { reason: 'ROOM_CLOSED' } });
+      let message = await nextOfType(player.client, 'ROOM');
+      while (message.data.room.phase.type !== 'END') {
+        message = await nextOfType(player.client, 'ROOM');
+      }
     }
 
     const { hello } = await connect(a.accessToken);
