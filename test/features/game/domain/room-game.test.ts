@@ -14,7 +14,7 @@ import { TEST_OPTION } from '../../../support/game.js';
 const NICK = 'nick' as Nickname;
 const uid = (n: number) => n as UserId;
 const [A, B, C] = [uid(1), uid(2), uid(3)];
-const GAME: Game = { mafiaId: C, category: '장소', keyword: '도시', turnOrder: [B, A, C] };
+const GAME: Game = { mafiaId: C, category: '장소', keyword: { word: '도시', synonyms: ['시내'] }, turnOrder: [B, A, C] };
 const STROKE: Stroke = { x: [1, 2], y: [3, 4], t: [0, 10] };
 const CANVAS = { w: 300, h: 400 };
 const T0 = 1_000;
@@ -212,6 +212,12 @@ describe('Room game flow', () => {
     expect(phase(room, PhaseType.Answer).typing).toBe('도');
     room.submitAnswer(C, ' 도시 ', now);
     expect(phase(room, PhaseType.End).result).toEqual({ mafiaId: C, accusedId: C, mafiaGuess: ' 도시 ', winner: Role.Mafia });
+  });
+
+  it('a synonym of the keyword also wins for the mafia', () => {
+    const { room, now } = answeringRoom();
+    room.submitAnswer(C, '시내', now);
+    expect(phase(room, PhaseType.End).result).toMatchObject({ mafiaGuess: '시내', winner: Role.Mafia });
   });
 
   it('at the answer deadline the last typed answer is judged', () => {

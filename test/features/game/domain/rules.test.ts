@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isCorrectGuess } from '../../../../src/features/game/domain/keyword.js';
+import { isCorrectGuess, type Keyword } from '../../../../src/features/game/domain/keyword.js';
 import { scheduleTurn } from '../../../../src/features/game/domain/rules/turn-timing.js';
 import { accusedBy } from '../../../../src/features/game/domain/rules/vote-tally.js';
 import type { UserId } from '../../../../src/shared/domain/user-id.js';
@@ -42,11 +42,22 @@ describe('accusedBy', () => {
   });
 });
 
+function keyword(word: string, ...synonyms: string[]): Keyword {
+  return { word, synonyms };
+}
+
 describe('isCorrectGuess', () => {
   it('ignores whitespace, case and Unicode composition', () => {
-    expect(isCorrectGuess(' Ice  cream ', 'icecream')).toBe(true);
-    expect(isCorrectGuess('도시'.normalize('NFD'), '도시')).toBe(true);
-    expect(isCorrectGuess('바다', '도시')).toBe(false);
-    expect(isCorrectGuess('', '도시')).toBe(false);
+    expect(isCorrectGuess(' Ice  cream ', keyword('icecream'))).toBe(true);
+    expect(isCorrectGuess('도시'.normalize('NFD'), keyword('도시'))).toBe(true);
+    expect(isCorrectGuess('바다', keyword('도시'))).toBe(false);
+    expect(isCorrectGuess('', keyword('도시'))).toBe(false);
+  });
+
+  it('accepts any synonym the same way', () => {
+    const dog = keyword('Dog', 'Puppy', '멍멍이');
+    expect(isCorrectGuess('PUPPY', dog)).toBe(true);
+    expect(isCorrectGuess(' 멍멍 이', dog)).toBe(true);
+    expect(isCorrectGuess('Cat', dog)).toBe(false);
   });
 });

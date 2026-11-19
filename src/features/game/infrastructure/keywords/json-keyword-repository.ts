@@ -5,8 +5,12 @@ import { Locale } from '../../../../shared/domain/locale.js';
 import type { KeywordRepository } from '../../application/ports/keyword-repository.js';
 import type { KeywordCategory } from '../../domain/keyword.js';
 
+/** Keywords and synonyms are single words; whitespace anywhere fails the boot. */
+const word = z.string().regex(/^\S+$/, 'must be one word without whitespace');
+const keyword = z.object({ word, synonyms: z.array(word) });
+
 const KeywordFileSchema = z
-  .array(z.object({ category: z.string().trim().min(1), keywords: z.array(z.string().trim().min(1)).min(1) }))
+  .array(z.object({ category: z.string().trim().min(1), keywords: z.array(keyword).min(1) }))
   .min(1);
 
 /** Reads `<dir>/<locale>.json` for every locale once at boot; a missing or malformed file fails the boot. */

@@ -96,7 +96,7 @@ function phaseView(phase: Phase, viewer: UserId) {
         type,
         game: gameView(phase.game, viewer),
         sketches: phase.sketches.map(sketchView),
-        result: resultView(phase.result, phase.game.keyword),
+        result: resultView(phase.result, phase.game.keyword.word),
         deadline: phase.deadline,
       };
   }
@@ -107,7 +107,7 @@ function gameView(game: Game, viewer: UserId) {
   return {
     role: ROLE_WIRE[isMafia ? Role.Mafia : Role.Citizen],
     category: game.category,
-    keyword: isMafia ? null : game.keyword,
+    keyword: isMafia ? null : game.keyword.word,
     turnOrder: [...game.turnOrder],
   };
 }

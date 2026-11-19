@@ -23,7 +23,7 @@ function startedRoom(): Room {
   });
   room.addPlayer(B, NICK);
   room.addPlayer(C, NICK);
-  room.start(A, { mafiaId: C, category: '장소', keyword: '도시', turnOrder: [B, A, C] }, 0);
+  room.start(A, { mafiaId: C, category: '장소', keyword: { word: '도시', synonyms: [] }, turnOrder: [B, A, C] }, 0);
   return room;
 }
 

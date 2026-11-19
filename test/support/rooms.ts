@@ -8,7 +8,7 @@ import { TEST_OPTION } from './game.js';
 
 const uid = (n: number) => n as UserId;
 export const [A, B, C] = [uid(1), uid(2), uid(3)];
-export const GAME: Game = { mafiaId: C, category: '장소', keyword: '도시', turnOrder: [B, A, C] };
+export const GAME: Game = { mafiaId: C, category: '장소', keyword: { word: '도시', synonyms: ['시내'] }, turnOrder: [B, A, C] };
 const STROKE = { x: [1, 2], y: [3, 4], t: [0, 10] };
 const CANVAS = { w: 300, h: 400 };
 export const T0 = 1_000_000;

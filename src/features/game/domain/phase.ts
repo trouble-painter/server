@@ -1,4 +1,5 @@
 import type { UserId } from '../../../shared/domain/user-id.js';
+import type { Keyword } from './keyword.js';
 import type { Role } from './role.js';
 
 export enum PhaseType {
@@ -14,7 +15,7 @@ export enum PhaseType {
 export interface Game {
   readonly mafiaId: UserId;
   readonly category: string;
-  readonly keyword: string;
+  readonly keyword: Keyword;
   readonly turnOrder: readonly UserId[];
 }
 

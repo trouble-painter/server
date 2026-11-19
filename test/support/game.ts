@@ -40,7 +40,7 @@ export class FakeRandom implements Random {
 }
 
 export class FixedKeywords implements KeywordRepository {
-  constructor(private readonly list: readonly KeywordCategory[] = [{ category: '장소', keywords: ['도시', '바다'] }]) {}
+  constructor(private readonly list: readonly KeywordCategory[] = [{ category: '장소', keywords: [{ word: '도시', synonyms: [] }, { word: '바다', synonyms: [] }] }]) {}
 
   categories(): readonly KeywordCategory[] {
     return this.list;

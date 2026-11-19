@@ -1,4 +1,4 @@
 [
-  { "category": "동물", "keywords": ["고양이", "강아지"] },
-  { "category": "음식", "keywords": ["피자"] }
+  { "category": "동물", "keywords": [{ "word": "고양이", "synonyms": ["야옹이"] }, { "word": "강아지", "synonyms": ["개"] }] },
+  { "category": "음식", "keywords": [{ "word": "피자", "synonyms": [] }] }
 ]

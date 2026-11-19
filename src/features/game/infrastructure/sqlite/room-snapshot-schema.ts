@@ -26,7 +26,7 @@ const userId = branded(z.number(), toUserId);
 const game = z.object({
   mafiaId: userId,
   category: z.string(),
-  keyword: z.string(),
+  keyword: z.object({ word: z.string(), synonyms: z.array(z.string()) }),
   turnOrder: z.array(userId),
 });
 

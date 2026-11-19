@@ -90,7 +90,7 @@ describe('game use cases', () => {
     start(new FakeRandom([0, 2, 1]));
     expect(room.phase).toMatchObject({
       type: PhaseType.Ready,
-      game: { mafiaId: C, category: '장소', keyword: '바다', turnOrder: [A, B, C] },
+      game: { mafiaId: C, category: '장소', keyword: { word: '바다', synonyms: [] }, turnOrder: [A, B, C] },
     });
     expect(publisher.events).toEqual([RoomEventType.PhaseChanged]);
     expect(scheduler.tasks.get(phaseTimerKey(room.id))?.delayMs).toBe(TEST_OPTION.readyMs);
