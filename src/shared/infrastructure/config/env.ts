@@ -13,6 +13,13 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
   JWT_SECRET: z.string().min(32),
   ACCESS_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(3600),
+  WS_PING_INTERVAL_MS: z.coerce.number().int().positive().default(25_000),
+  WS_MAX_MESSAGE_BYTES: z.coerce.number().int().positive().default(64 * 1024),
+  WS_RATE_PER_SEC: z.coerce.number().int().positive().default(40),
+  WS_RATE_BURST: z.coerce.number().int().positive().default(80),
+  WAIT_DISCONNECT_GRACE_MS: z.coerce.number().int().positive().default(30_000),
+  EMPTY_ROOM_TTL_MS: z.coerce.number().int().positive().default(600_000),
+  ROOM_CLEANUP_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
