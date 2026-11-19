@@ -1,23 +1,40 @@
 import { describe, expect, it } from 'vitest';
-import { loadEnv } from '../../../../src/shared/infrastructure/config/env.js';
+import { AppEnv, envFilePath, parseEnv } from '../../../../src/shared/infrastructure/config/env.js';
 
-const SECRET = 'x'.repeat(32);
+const VALID = { APP_ENV: 'dev', JWT_SECRET: 'x'.repeat(32) };
 
-describe('loadEnv', () => {
+describe('parseEnv', () => {
+  it('fails without APP_ENV or with an unknown APP_ENV', () => {
+    expect(() => parseEnv({ JWT_SECRET: VALID.JWT_SECRET })).toThrow(/APP_ENV/);
+    expect(() => parseEnv({ ...VALID, APP_ENV: 'staging' })).toThrow(/APP_ENV/);
+  });
+
+  it('parses APP_ENV into AppEnv', () => {
+    expect(parseEnv(VALID).APP_ENV).toBe(AppEnv.Dev);
+    expect(parseEnv({ ...VALID, APP_ENV: 'prod' }).APP_ENV).toBe(AppEnv.Prod);
+  });
+
   it('fails without JWT_SECRET', () => {
-    expect(() => loadEnv({})).toThrow(/JWT_SECRET/);
+    expect(() => parseEnv({ APP_ENV: 'dev' })).toThrow(/JWT_SECRET/);
   });
 
   it('fails with a short JWT_SECRET', () => {
-    expect(() => loadEnv({ JWT_SECRET: 'short' })).toThrow(/JWT_SECRET/);
+    expect(() => parseEnv({ ...VALID, JWT_SECRET: 'short' })).toThrow(/JWT_SECRET/);
   });
 
   it('does not include the secret value in the error', () => {
-    expect(() => loadEnv({ JWT_SECRET: 'short-secret-value' })).not.toThrow(/short-secret-value/);
+    expect(() => parseEnv({ ...VALID, JWT_SECRET: 'short-secret-value' })).not.toThrow(/short-secret-value/);
   });
 
   it('parses PORT and applies its default', () => {
-    expect(loadEnv({ JWT_SECRET: SECRET, PORT: '3000' }).PORT).toBe(3000);
-    expect(loadEnv({ JWT_SECRET: SECRET }).PORT).toBe(8080);
+    expect(parseEnv({ ...VALID, PORT: '3000' }).PORT).toBe(3000);
+    expect(parseEnv(VALID).PORT).toBe(8080);
+  });
+});
+
+describe('envFilePath', () => {
+  it('points into the private .env directory per environment', () => {
+    expect(envFilePath(AppEnv.Dev)).toBe('.env/dev/server.env');
+    expect(envFilePath(AppEnv.Prod)).toBe('.env/prod/server.env');
   });
 });
