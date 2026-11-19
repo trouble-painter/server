@@ -11,6 +11,7 @@ import { Membership } from './features/game/application/membership.js';
 import { PhaseTimer } from './features/game/application/phase-timer.js';
 import { CleanupRooms } from './features/game/application/usecases/cleanup-rooms.js';
 import { ConnectUser } from './features/game/application/usecases/connect-user.js';
+import { ClearSketch } from './features/game/application/usecases/clear-sketch.js';
 import { CreateRoom } from './features/game/application/usecases/create-room.js';
 import { DisconnectUser } from './features/game/application/usecases/disconnect-user.js';
 import { DrawStroke } from './features/game/application/usecases/draw-stroke.js';
@@ -121,6 +122,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
   registerGameHandlers(router, limits, {
     startGame: new StartGame(rooms, publisher, timer, keywords, random, clock),
     drawStroke: new DrawStroke(rooms, publisher, clock),
+    clearSketch: new ClearSketch(rooms, publisher, clock),
     endTurn: new EndTurn(rooms, publisher, timer, clock),
     react: new React(rooms, publisher, clock, env.REACTION_THROTTLE_MS),
     vote: new Vote(rooms, publisher, timer, clock),

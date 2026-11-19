@@ -151,6 +151,26 @@ describe('WebSocket game', () => {
     expect(players.every((p) => p.client.pending === 0)).toBe(true);
   });
 
+  it('clearing a sketch tells the others and lets the drawer start again from index 0', async () => {
+    await boot();
+    const players = await threePlayers();
+    const { order } = await startGame(players);
+    const drawer = order[0]!;
+    const watchers = players.filter((p) => p !== drawer);
+    drawer.client.send('DRAW_STROKE', { index: 0, stroke: STROKE, canvas: CANVAS });
+    await expectNext(watchers, 'STROKE');
+
+    expect((await order[1]!.client.request('CLEAR_SKETCH')).data.code).toBe('NOT_YOUR_TURN');
+    drawer.client.send('CLEAR_SKETCH');
+    for (const message of await expectNext(watchers, 'SKETCH_CLEARED')) {
+      expect(message.data).toEqual({});
+    }
+    drawer.client.send('END_TURN');
+    const [next] = await expectNext(players, 'TURN');
+    expect(next!.data.sketch).toBeNull();
+    expect(players.every((p) => p.client.pending === 0)).toBe(true);
+  });
+
   it('runs on deadlines alone: an empty vote lets the mafia win, then the room waits again', async () => {
     await boot({ GAME_TURN_MS: '30', GAME_VOTE_MS: '30', GAME_END_MS: '30' });
     const players = await threePlayers();

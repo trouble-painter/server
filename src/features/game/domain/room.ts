@@ -219,6 +219,16 @@ export class Room {
     return [{ type: RoomEventType.StrokeUpdated, drawerId: userId, index, stroke, canvas }];
   }
 
+  /** Drops every stroke of this turn, so drawing starts again from index 0. */
+  clearSketch(userId: UserId, now: number): RoomEvent[] {
+    const phase = this.#drawerPhase(userId);
+    if (now < phase.turn.drawFrom) {
+      throw new GameError(GameErrorCode.InvalidPhase);
+    }
+    this.#phase = { ...phase, current: null };
+    return [{ type: RoomEventType.SketchCleared, drawerId: userId }];
+  }
+
   endTurn(userId: UserId, now: number): RoomEvent[] {
     return this.#nextTurn(this.#drawerPhase(userId), now);
   }

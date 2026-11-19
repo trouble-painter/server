@@ -119,6 +119,24 @@ describe('Room game flow', () => {
     expect(codeOf(() => room.drawStroke(B, 2, STROKE, CANVAS, open))).toBe(GameErrorCode.InvalidRequest);
   });
 
+  it('the drawer clears the sketch once drawing opens, and draws again from index 0', () => {
+    const { room, now } = drawingRoom();
+    const open = phase(room, PhaseType.Drawing).turn.drawFrom;
+    room.drawStroke(B, 0, STROKE, CANVAS, open);
+    room.drawStroke(B, 1, STROKE, CANVAS, open);
+    expect(codeOf(() => room.clearSketch(A, open))).toBe(GameErrorCode.NotYourTurn);
+    expect(codeOf(() => room.clearSketch(B, now))).toBe(GameErrorCode.InvalidPhase);
+    const version = room.version;
+
+    expect(room.clearSketch(B, open)).toEqual([{ type: RoomEventType.SketchCleared, drawerId: B }]);
+    expect(phase(room, PhaseType.Drawing).current).toBeNull();
+    expect(room.version).toBe(version);
+    expect(codeOf(() => room.drawStroke(B, 1, STROKE, CANVAS, open))).toBe(GameErrorCode.InvalidRequest);
+    room.drawStroke(B, 0, STROKE, CANVAS, open);
+    expect(phase(room, PhaseType.Drawing).current).toEqual({ userId: B, canvas: CANVAS, strokes: [STROKE] });
+    expect(codeOf(() => roomOf(3).clearSketch(A, open))).toBe(GameErrorCode.InvalidPhase);
+  });
+
   it('ending a turn files the sketch and hands the turn to the next drawer', () => {
     const { room } = drawingRoom();
     const open = phase(room, PhaseType.Drawing).turn.drawFrom;

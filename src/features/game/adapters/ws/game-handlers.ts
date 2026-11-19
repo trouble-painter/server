@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ClientMessageType } from '../../../../shared/adapters/ws/protocol.js';
 import type { WsRouter } from '../../../../shared/adapters/ws/router.js';
 import { toUserId, type UserId } from '../../../../shared/domain/user-id.js';
+import type { ClearSketch } from '../../application/usecases/clear-sketch.js';
 import type { DrawStroke } from '../../application/usecases/draw-stroke.js';
 import type { EndTurn } from '../../application/usecases/end-turn.js';
 import type { PlayAgain } from '../../application/usecases/play-again.js';
@@ -38,6 +39,7 @@ export function registerGameHandlers(
   deps: {
     startGame: StartGame;
     drawStroke: DrawStroke;
+    clearSketch: ClearSketch;
     endTurn: EndTurn;
     react: React;
     vote: Vote;
@@ -60,6 +62,10 @@ export function registerGameHandlers(
       return null;
     },
   );
+  router.register(ClientMessageType.ClearSketch, z.object({}), (userId) => {
+    deps.clearSketch.execute(userId);
+    return null;
+  });
   router.register(ClientMessageType.EndTurn, z.object({}), (userId) => {
     deps.endTurn.execute(userId);
     return null;

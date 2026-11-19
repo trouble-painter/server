@@ -7,6 +7,7 @@ export enum RoomEventType {
   PhaseChanged = 'phaseChanged',
   TurnChanged = 'turnChanged',
   StrokeUpdated = 'strokeUpdated',
+  SketchCleared = 'sketchCleared',
   ReactionSent = 'reactionSent',
   VotesChanged = 'votesChanged',
   AnswerTyped = 'answerTyped',
@@ -25,6 +26,7 @@ export type RoomEvent =
       readonly stroke: Stroke;
       readonly canvas: Canvas;
     }
+  | { readonly type: RoomEventType.SketchCleared; readonly drawerId: UserId }
   | { readonly type: RoomEventType.ReactionSent; readonly userId: UserId; readonly reaction: Reaction }
   /** Carries the votes because the vote may already be tallied when the event is published. */
   | { readonly type: RoomEventType.VotesChanged; readonly votes: ReadonlyMap<UserId, UserId> }
