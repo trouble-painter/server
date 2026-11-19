@@ -2,18 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
-import { parseEnv } from '../../src/shared/infrastructure/config/env.js';
-import { KEYWORDS_FIXTURE_DIR } from '../support/game.js';
+import { testEnv } from '../support/env.js';
 import { Client, type Message } from '../support/ws-client.js';
 
 const GRACE_MS = 150;
-const ENV = parseEnv({
-  APP_ENV: 'dev',
-  JWT_SECRET: 'x'.repeat(32),
-  WAIT_DISCONNECT_GRACE_MS: String(GRACE_MS),
-  KEYWORDS_DIR: KEYWORDS_FIXTURE_DIR,
-  SQLITE_PATH: ':memory:',
-});
+const ENV = testEnv({ WAIT_DISCONNECT_GRACE_MS: String(GRACE_MS) });
 describe('WebSocket rooms', () => {
   let app: FastifyInstance;
   let url: string;

@@ -5,8 +5,7 @@ import { join } from 'node:path';
 import { pino } from 'pino';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
-import { parseEnv } from '../../src/shared/infrastructure/config/env.js';
-import { KEYWORDS_FIXTURE_DIR } from '../support/game.js';
+import { testEnv } from '../support/env.js';
 import { Client, type Message } from '../support/ws-client.js';
 
 /** Phase timers short enough to run out within a test; turns are long so tests end them explicitly. */
@@ -41,7 +40,7 @@ describe('WebSocket game', () => {
   });
 
   async function boot(overrides: Record<string, string> = {}): Promise<void> {
-    const env = parseEnv({ APP_ENV: 'dev', JWT_SECRET: 'x'.repeat(32), KEYWORDS_DIR: KEYWORDS_FIXTURE_DIR, SQLITE_PATH: ':memory:', ...FAST, ...overrides });
+    const env = testEnv({ ...FAST, ...overrides });
     app = buildApp(env, pino({ enabled: false }));
     const address = await app.listen({ host: '127.0.0.1', port: 0 });
     url = `${address.replace('http', 'ws')}/ws`;

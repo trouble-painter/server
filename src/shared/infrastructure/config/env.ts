@@ -8,50 +8,46 @@ export enum AppEnv {
 
 const AppEnvSchema = z.enum(AppEnv);
 
-const positiveInt = (fallback: number) => z.coerce.number().int().positive().default(fallback);
-const nonNegativeInt = (fallback: number) => z.coerce.number().int().min(0).default(fallback);
+/** Every setting is required: values live only in `.env/<APP_ENV>/server.env`, never as code defaults. */
+const positiveInt = z.coerce.number().int().positive();
+const nonNegativeInt = z.coerce.number().int().min(0);
 
 const EnvSchema = z.object({
   APP_ENV: AppEnvSchema,
-  PORT: z.coerce.number().int().min(1).max(65535).default(8080),
+  PORT: z.coerce.number().int().min(1).max(65535),
   JWT_SECRET: z.string().min(32),
-  ACCESS_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(3600),
-  WS_PING_INTERVAL_MS: z.coerce.number().int().positive().default(25_000),
-  WS_MAX_MESSAGE_BYTES: z.coerce.number().int().positive().default(64 * 1024),
-  WS_RATE_PER_SEC: z.coerce.number().int().positive().default(40),
-  WS_RATE_BURST: z.coerce.number().int().positive().default(80),
-  WAIT_DISCONNECT_GRACE_MS: z.coerce.number().int().positive().default(30_000),
-  EMPTY_ROOM_TTL_MS: z.coerce.number().int().positive().default(600_000),
-  ROOM_CLEANUP_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
-  GAME_READY_MS: positiveInt(5_000),
-  GAME_INTRO_ANIMATION_MS: nonNegativeInt(3_000),
-  GAME_ROUND_ANIMATION_MS: nonNegativeInt(2_000),
-  GAME_ROUNDS: positiveInt(2),
-  GAME_TURN_MS: positiveInt(10_000),
-  GAME_STROKES_PER_TURN: positiveInt(1),
-  GAME_VOTE_MS: positiveInt(30_000),
-  GAME_ANSWER_MS: positiveInt(20_000),
-  GAME_END_MS: positiveInt(15_000),
-  DRAW_THROTTLE_MS: positiveInt(50),
-  REACTION_THROTTLE_MS: positiveInt(500),
-  MAX_STROKE_POINTS: positiveInt(500),
-  MAX_ANSWER_LENGTH: positiveInt(20),
-  /** Holds `<locale>.json` per locale; the data is private, so it lives under `.env/`. */
-  KEYWORDS_DIR: z.string().min(1).default('.env/keywords'),
-  /** Defaults to `rooms.db` in the environment's private directory; `:memory:` keeps nothing. */
-  SQLITE_PATH: z.string().min(1).optional(),
-  RESTORE_GRACE_MS: positiveInt(10_000),
-}).transform((env) => ({ ...env, SQLITE_PATH: env.SQLITE_PATH ?? `${envDir(env.APP_ENV)}/rooms.db` }));
+  ACCESS_TOKEN_TTL_SEC: positiveInt,
+  WS_PING_INTERVAL_MS: positiveInt,
+  WS_MAX_MESSAGE_BYTES: positiveInt,
+  WS_RATE_PER_SEC: positiveInt,
+  WS_RATE_BURST: positiveInt,
+  WAIT_DISCONNECT_GRACE_MS: positiveInt,
+  EMPTY_ROOM_TTL_MS: positiveInt,
+  ROOM_CLEANUP_INTERVAL_MS: positiveInt,
+  GAME_READY_MS: positiveInt,
+  GAME_INTRO_ANIMATION_MS: nonNegativeInt,
+  GAME_ROUND_ANIMATION_MS: nonNegativeInt,
+  GAME_ROUNDS: positiveInt,
+  GAME_TURN_MS: positiveInt,
+  GAME_STROKES_PER_TURN: positiveInt,
+  GAME_VOTE_MS: positiveInt,
+  GAME_ANSWER_MS: positiveInt,
+  GAME_END_MS: positiveInt,
+  DRAW_THROTTLE_MS: positiveInt,
+  REACTION_THROTTLE_MS: positiveInt,
+  MAX_STROKE_POINTS: positiveInt,
+  MAX_ANSWER_LENGTH: positiveInt,
+  /** Holds `<locale>.json` per locale. */
+  KEYWORDS_DIR: z.string().min(1),
+  /** `:memory:` keeps nothing. */
+  SQLITE_PATH: z.string().min(1),
+  RESTORE_GRACE_MS: positiveInt,
+});
 
 export type Env = z.infer<typeof EnvSchema>;
 
-/** Private per-environment directory for config and data. */
-function envDir(appEnv: AppEnv): string {
-  return `.env/${appEnv}`;
-}
-
 export function envFilePath(appEnv: AppEnv): string {
-  return `${envDir(appEnv)}/server.env`;
+  return `.env/${appEnv}/server.env`;
 }
 
 export function parseEnv(source: NodeJS.ProcessEnv): Env {
