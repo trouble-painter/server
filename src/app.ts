@@ -28,6 +28,7 @@ import { UpdateRule } from './features/game/application/usecases/update-rule.js'
 import { StartQuickStartGame } from './features/game/application/usecases/start-quick-start-game.js';
 import { SubmitAnswer } from './features/game/application/usecases/submit-answer.js';
 import { TypeAnswer } from './features/game/application/usecases/type-answer.js';
+import { UndoStroke } from './features/game/application/usecases/undo-stroke.js';
 import { Vote } from './features/game/application/usecases/vote.js';
 import { PLAYER_COUNT, type GameOption } from './features/game/domain/game-option.js';
 import { MAX_STROKES_PER_TURN } from './features/game/domain/game-rule.js';
@@ -142,6 +143,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     startGame: new StartGame(rooms, publisher, timer, keywords, random, clock, gameStartPush),
     drawStroke: new DrawStroke(rooms, publisher, clock),
     clearSketch: new ClearSketch(rooms, publisher, clock),
+    undoStroke: new UndoStroke(rooms, publisher, clock),
     endTurn: new EndTurn(rooms, publisher, timer, clock),
     react: new React(rooms, publisher, clock, env.REACTION_THROTTLE_MS),
     vote: new Vote(rooms, publisher),

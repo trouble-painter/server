@@ -9,6 +9,7 @@ export enum RoomEventType {
   TurnChanged = 'turnChanged',
   StrokeUpdated = 'strokeUpdated',
   SketchCleared = 'sketchCleared',
+  StrokeUndone = 'strokeUndone',
   ReactionSent = 'reactionSent',
   VotesChanged = 'votesChanged',
   AnswerTyped = 'answerTyped',
@@ -28,6 +29,7 @@ export type RoomEvent =
       readonly canvas: Canvas;
     }
   | { readonly type: RoomEventType.SketchCleared; readonly drawerId: UserId }
+  | { readonly type: RoomEventType.StrokeUndone; readonly drawerId: UserId }
   | { readonly type: RoomEventType.ReactionSent; readonly userId: UserId; readonly reaction: Reaction }
   | { readonly type: RoomEventType.VotesChanged; readonly votes: ReadonlyMap<UserId, UserId> }
   | { readonly type: RoomEventType.AnswerTyped; readonly mafiaId: UserId; readonly answer: string };

@@ -269,6 +269,21 @@ export class Room {
     return [{ type: RoomEventType.SketchCleared, drawerId: userId }];
   }
 
+  /** Drops the last stroke of this turn, so the next stroke takes its index. */
+  undoStroke(userId: UserId, now: number): RoomEvent[] {
+    const phase = this.#drawerPhase(userId);
+    if (now < phase.turn.drawFrom) {
+      throw new GameError(GameErrorCode.InvalidPhase);
+    }
+    const current = phase.current;
+    if (current === null || current.strokes.length === 0) {
+      throw new GameError(GameErrorCode.InvalidRequest);
+    }
+    const strokes = current.strokes.slice(0, -1);
+    this.#phase = { ...phase, current: strokes.length === 0 ? null : { ...current, strokes } };
+    return [{ type: RoomEventType.StrokeUndone, drawerId: userId }];
+  }
+
   endTurn(userId: UserId, now: number): RoomEvent[] {
     return this.#nextTurn(this.#drawerPhase(userId), now);
   }

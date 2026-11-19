@@ -193,7 +193,7 @@ export function idleMessage(reason: IdleReason): ServerMessage {
   return { type: ServerMessageType.Idle, data: { reason } };
 }
 
-/** What `viewer` is told about the event; null when it is not for them (their own stroke, clear, reaction or answer). */
+/** What `viewer` is told about the event; null when it is not for them (their own stroke, clear, undo, reaction or answer). */
 export function eventMessage(room: Room, event: RoomEvent, viewer: UserId, keywords: KeywordRepository): ServerMessage | null {
   switch (event.type) {
     case RoomEventType.PlayersChanged:
@@ -215,6 +215,8 @@ export function eventMessage(room: Room, event: RoomEvent, viewer: UserId, keywo
           };
     case RoomEventType.SketchCleared:
       return viewer === event.drawerId ? null : { type: ServerMessageType.SketchCleared, data: {} };
+    case RoomEventType.StrokeUndone:
+      return viewer === event.drawerId ? null : { type: ServerMessageType.StrokeUndone, data: {} };
     case RoomEventType.ReactionSent:
       return viewer === event.userId
         ? null

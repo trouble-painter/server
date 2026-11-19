@@ -10,6 +10,7 @@ import type { React } from '../../application/usecases/react.js';
 import type { StartGame } from '../../application/usecases/start-game.js';
 import type { SubmitAnswer } from '../../application/usecases/submit-answer.js';
 import type { TypeAnswer } from '../../application/usecases/type-answer.js';
+import type { UndoStroke } from '../../application/usecases/undo-stroke.js';
 import type { UpdateRule } from '../../application/usecases/update-rule.js';
 import type { Vote } from '../../application/usecases/vote.js';
 import type { Limits } from '../../domain/limits.js';
@@ -49,6 +50,7 @@ export function registerGameHandlers(
     startGame: StartGame;
     drawStroke: DrawStroke;
     clearSketch: ClearSketch;
+    undoStroke: UndoStroke;
     endTurn: EndTurn;
     react: React;
     vote: Vote;
@@ -88,6 +90,10 @@ export function registerGameHandlers(
   );
   router.register(ClientMessageType.ClearSketch, z.object({}), (userId) => {
     deps.clearSketch.execute(userId);
+    return null;
+  });
+  router.register(ClientMessageType.UndoStroke, z.object({}), (userId) => {
+    deps.undoStroke.execute(userId);
     return null;
   });
   router.register(ClientMessageType.EndTurn, z.object({}), (userId) => {

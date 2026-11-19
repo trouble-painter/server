@@ -174,6 +174,29 @@ describe('WebSocket game', () => {
     expect(players.every((p) => p.client.pending === 0)).toBe(true);
   });
 
+  it('undoing a stroke tells the others and frees its index for the next stroke', async () => {
+    await boot();
+    const players = await threePlayers();
+    const { order } = await startGame(players);
+    const drawer = order[0]!;
+    const watchers = players.filter((p) => p !== drawer);
+    drawer.client.send('DRAW_STROKE', { index: 0, stroke: STROKE, canvas: CANVAS });
+    await expectNext(watchers, 'STROKE');
+
+    expect((await order[1]!.client.request('UNDO_STROKE')).data.code).toBe('NOT_YOUR_TURN');
+    drawer.client.send('UNDO_STROKE');
+    for (const message of await expectNext(watchers, 'STROKE_UNDONE')) {
+      expect(message.data).toEqual({});
+    }
+    // GAME_STROKES_PER_TURN is 1: the undone stroke gave its slot back.
+    drawer.client.send('DRAW_STROKE', { index: 0, stroke: STROKE, canvas: CANVAS });
+    await expectNext(watchers, 'STROKE');
+    drawer.client.send('END_TURN');
+    const [next] = await expectNext(players, 'TURN');
+    expect(next!.data.sketch.strokes).toHaveLength(1);
+    expect(players.every((p) => p.client.pending === 0)).toBe(true);
+  });
+
   it('runs on deadlines alone: an empty vote lets the mafia win', async () => {
     await boot({ GAME_TURN_MS: '30', GAME_VOTE_MS: '30' });
     const players = await threePlayers();

@@ -138,6 +138,28 @@ describe('Room game flow', () => {
     expect(codeOf(() => roomOf(3).clearSketch(A, open))).toBe(GameErrorCode.InvalidPhase);
   });
 
+  it('the drawer undoes the last stroke once drawing opens, and the next stroke takes its index', () => {
+    const { room, now } = drawingRoom();
+    const open = phase(room, PhaseType.Drawing).turn.drawFrom;
+    expect(codeOf(() => room.undoStroke(B, open))).toBe(GameErrorCode.InvalidRequest);
+    const first = { x: [1, 2, 3], y: [3, 4, 5], t: [0, 10, 10] };
+    room.drawStroke(B, 0, first, CANVAS, open);
+    room.drawStroke(B, 1, STROKE, CANVAS, open);
+    expect(codeOf(() => room.undoStroke(A, open))).toBe(GameErrorCode.NotYourTurn);
+    expect(codeOf(() => room.undoStroke(B, now))).toBe(GameErrorCode.InvalidPhase);
+    const version = room.version;
+
+    expect(room.undoStroke(B, open)).toEqual([{ type: RoomEventType.StrokeUndone, drawerId: B }]);
+    expect(phase(room, PhaseType.Drawing).current).toEqual({ userId: B, canvas: CANVAS, strokes: [first] });
+    expect(room.version).toBe(version);
+    room.drawStroke(B, 1, STROKE, CANVAS, open);
+    expect(phase(room, PhaseType.Drawing).current).toEqual({ userId: B, canvas: CANVAS, strokes: [first, STROKE] });
+    room.undoStroke(B, open);
+    room.undoStroke(B, open);
+    expect(phase(room, PhaseType.Drawing).current).toBeNull();
+    expect(codeOf(() => room.undoStroke(B, open))).toBe(GameErrorCode.InvalidRequest);
+  });
+
   it('ending a turn files the sketch and hands the turn to the next drawer', () => {
     const { room } = drawingRoom();
     const open = phase(room, PhaseType.Drawing).turn.drawFrom;

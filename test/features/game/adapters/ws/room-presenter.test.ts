@@ -82,7 +82,7 @@ describe('room presenter', () => {
     expect((roomMessage(room, A, KEYWORDS).data as any).room.phase).toMatchObject({ type: 'ANSWER', accusedId: 3, typing: '' });
   });
 
-  it('does not echo a stroke, clear, reaction or answer back to its sender', () => {
+  it('does not echo a stroke, clear, undo, reaction or answer back to its sender', () => {
     const room = startedRoom();
     const stroke = {
       type: RoomEventType.StrokeUpdated,
@@ -99,6 +99,9 @@ describe('room presenter', () => {
     const cleared = { type: RoomEventType.SketchCleared, drawerId: B } as const;
     expect(eventMessage(room, cleared, B, KEYWORDS)).toBeNull();
     expect(eventMessage(room, cleared, A, KEYWORDS)).toEqual({ type: 'SKETCH_CLEARED', data: {} });
+    const undone = { type: RoomEventType.StrokeUndone, drawerId: B } as const;
+    expect(eventMessage(room, undone, B, KEYWORDS)).toBeNull();
+    expect(eventMessage(room, undone, A, KEYWORDS)).toEqual({ type: 'STROKE_UNDONE', data: {} });
     const reaction = { type: RoomEventType.ReactionSent, userId: A, reaction: Reaction.Poop } as const;
     expect(eventMessage(room, reaction, A, KEYWORDS)).toBeNull();
     expect(eventMessage(room, reaction, B, KEYWORDS)).toEqual({ type: 'REACTION', data: { userId: 1, reaction: 'POOP' } });
