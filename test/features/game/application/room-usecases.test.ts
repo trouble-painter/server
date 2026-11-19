@@ -68,7 +68,7 @@ describe('room use cases', () => {
     joinRoom = new JoinRoom(rooms, membership, publisher);
     leaveRoom = new LeaveRoom(rooms, membership, publisher, clock);
     connectUser = new ConnectUser(rooms, publisher, scheduler, clock);
-    disconnectUser = new DisconnectUser(rooms, membership, publisher, scheduler, clock, GRACE_MS);
+    disconnectUser = new DisconnectUser(rooms, membership, publisher, clock, GRACE_MS);
     cleanupRooms = new CleanupRooms(rooms, scheduler, clock, TTL_MS);
   });
 

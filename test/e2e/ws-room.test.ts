@@ -12,6 +12,7 @@ const ENV = parseEnv({
   JWT_SECRET: 'x'.repeat(32),
   WAIT_DISCONNECT_GRACE_MS: String(GRACE_MS),
   KEYWORDS_DIR: KEYWORDS_FIXTURE_DIR,
+  SQLITE_PATH: ':memory:',
 });
 describe('WebSocket rooms', () => {
   let app: FastifyInstance;

@@ -1,4 +1,7 @@
 import type { FastifyInstance } from 'fastify';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { pino } from 'pino';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
@@ -38,7 +41,7 @@ describe('WebSocket game', () => {
   });
 
   async function boot(overrides: Record<string, string> = {}): Promise<void> {
-    const env = parseEnv({ APP_ENV: 'dev', JWT_SECRET: 'x'.repeat(32), KEYWORDS_DIR: KEYWORDS_FIXTURE_DIR, ...FAST, ...overrides });
+    const env = parseEnv({ APP_ENV: 'dev', JWT_SECRET: 'x'.repeat(32), KEYWORDS_DIR: KEYWORDS_FIXTURE_DIR, SQLITE_PATH: ':memory:', ...FAST, ...overrides });
     app = buildApp(env, pino({ enabled: false }));
     const address = await app.listen({ host: '127.0.0.1', port: 0 });
     url = `${address.replace('http', 'ws')}/ws`;
@@ -233,5 +236,43 @@ describe('WebSocket game', () => {
     host.client.send('REACTION', { reaction: 'HEART' });
     expect((await stayer.client.next()).type).toBe('REACTION');
     expect(leaver.client.pending).toBe(0);
+  });
+
+  it('picks a game up again after a restart: everyone reconnects to the same turn', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'restart-'));
+    const db = { SQLITE_PATH: join(dir, 'rooms.db') };
+    try {
+      await boot(db);
+      const players = await threePlayers();
+      const { mafia, order } = await startGame(players);
+      const [first, second] = order as [Player, Player, Player];
+      first.client.send('DRAW_STROKE', { index: 0, stroke: STROKE, canvas: CANVAS });
+      await expectNext(players.filter((p) => p !== first), 'STROKE');
+      first.client.send('END_TURN');
+      await expectNext(players, 'TURN');
+
+      await app.close();
+      expect(await Promise.all(players.map((p) => p.client.closed))).toEqual([1001, 1001, 1001]);
+      await boot(db);
+
+      for (const [i, player] of players.entries()) {
+        const { client, hello } = await connect(player.accessToken);
+        player.client = client;
+        expect(hello.data.room.phase).toMatchObject({
+          type: 'DRAWING',
+          turn: { round: 0, turn: 1, drawerId: second.userId },
+          sketches: [{ userId: first.userId, canvas: CANVAS, strokes: [STROKE] }],
+          game: { role: player === mafia ? 'MAFIA' : 'CITIZEN' },
+        });
+        expect(hello.data.room.players.filter((p: { isConnected: boolean }) => p.isConnected)).toHaveLength(i + 1);
+        await Promise.all(players.slice(0, i).map((p) => p.client.next()));
+      }
+
+      second.client.send('END_TURN');
+      const [turn] = await expectNext(players, 'TURN');
+      expect(turn!.data.turn).toMatchObject({ turn: 2, drawerId: order[2]!.userId });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

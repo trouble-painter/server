@@ -38,12 +38,20 @@ const EnvSchema = z.object({
   MAX_ANSWER_LENGTH: positiveInt(20),
   /** Holds `<locale>.json` per locale; the data is private, so it lives under `.env/`. */
   KEYWORDS_DIR: z.string().min(1).default('.env/keywords'),
-});
+  /** Defaults to `rooms.db` in the environment's private directory; `:memory:` keeps nothing. */
+  SQLITE_PATH: z.string().min(1).optional(),
+  RESTORE_GRACE_MS: positiveInt(10_000),
+}).transform((env) => ({ ...env, SQLITE_PATH: env.SQLITE_PATH ?? `${envDir(env.APP_ENV)}/rooms.db` }));
 
 export type Env = z.infer<typeof EnvSchema>;
 
+/** Private per-environment directory for config and data. */
+function envDir(appEnv: AppEnv): string {
+  return `.env/${appEnv}`;
+}
+
 export function envFilePath(appEnv: AppEnv): string {
-  return `.env/${appEnv}/server.env`;
+  return `${envDir(appEnv)}/server.env`;
 }
 
 export function parseEnv(source: NodeJS.ProcessEnv): Env {

@@ -5,7 +5,7 @@ import { buildApp } from '../../src/app.js';
 import { parseEnv } from '../../src/shared/infrastructure/config/env.js';
 import { KEYWORDS_FIXTURE_DIR } from '../support/game.js';
 
-const ENV = parseEnv({ APP_ENV: 'dev', JWT_SECRET: 'x'.repeat(32), KEYWORDS_DIR: KEYWORDS_FIXTURE_DIR });
+const ENV = parseEnv({ APP_ENV: 'dev', JWT_SECRET: 'x'.repeat(32), KEYWORDS_DIR: KEYWORDS_FIXTURE_DIR, SQLITE_PATH: ':memory:' });
 
 describe('auth REST', () => {
   let app: FastifyInstance;

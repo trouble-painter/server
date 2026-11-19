@@ -41,6 +41,17 @@ export class Membership {
     this.publisher.publish(room, events);
   }
 
+  /** Takes a disconnected user out of their waiting room unless they are back within `delayMs`. */
+  leaveWaitingLater(userId: UserId, delayMs: number): void {
+    this.scheduler.schedule(waitLeaveKey(userId), delayMs, () => {
+      const room = this.rooms.findByUser(userId);
+      if (room === null || room.isInGame || room.isConnected(userId)) {
+        return;
+      }
+      this.remove(room, userId);
+    });
+  }
+
   /** Frees the user to enter another room: leaves a waiting room, refuses during a game. */
   release(userId: UserId): void {
     const room = this.rooms.findByUser(userId);

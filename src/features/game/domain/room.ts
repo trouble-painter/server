@@ -9,6 +9,7 @@ import { PhaseType, type Canvas, type Game, type Phase, type Result, type Sketch
 import { PLAYER_COLORS, type PlayerColor } from './player-color.js';
 import type { Reaction } from './reaction.js';
 import { RoomEventType, type RoomEvent } from './room-event.js';
+import { ROOM_SNAPSHOT_VERSION, type RoomSnapshot } from './room-snapshot.js';
 import { Role } from './role.js';
 import { scheduleTurn } from './rules/turn-timing.js';
 import { accusedBy } from './rules/vote-tally.js';
@@ -53,6 +54,32 @@ export class Room {
     const room = new Room(params.id, params.locale, params.isQuickStart, params.option, params.hostId);
     room.addPlayer(params.hostId, params.hostNickname);
     return room;
+  }
+
+  static fromSnapshot(snapshot: RoomSnapshot): Room {
+    const room = new Room(snapshot.id, snapshot.locale, snapshot.isQuickStart, snapshot.option, snapshot.hostId);
+    room.#players.push(...snapshot.players.map((p) => ({ ...p })));
+    const phase = snapshot.phase;
+    room.#phase = phase.type === PhaseType.Vote ? { ...phase, votes: new Map(phase.votes) } : phase;
+    room.#emptySince = snapshot.emptySince;
+    room.#version = snapshot.version;
+    return room;
+  }
+
+  toSnapshot(): RoomSnapshot {
+    const phase = this.#phase;
+    return {
+      v: ROOM_SNAPSHOT_VERSION,
+      id: this.id,
+      locale: this.locale,
+      isQuickStart: this.isQuickStart,
+      option: this.option,
+      hostId: this.#hostId,
+      players: this.#players.map((p) => ({ ...p })),
+      phase: phase.type === PhaseType.Vote ? { ...phase, votes: [...phase.votes] } : phase,
+      emptySince: this.#emptySince,
+      version: this.#version,
+    };
   }
 
   get hostId(): UserId {
@@ -256,6 +283,32 @@ export class Room {
       case PhaseType.End:
         // TODO(M5): a quick-start room is dissolved instead.
         return this.#backToWait(now);
+    }
+  }
+
+  /**
+   * After a restart nobody is connected yet: everyone is marked away, and a running deadline
+   * is pushed to at least `now + graceMs` so players have time to reconnect.
+   */
+  resumeAfterRestart(now: number, graceMs: number): void {
+    for (const player of this.#players) {
+      player.isConnected = false;
+    }
+    this.#emptySince = now;
+    const earliest = now + graceMs;
+    const phase = this.#phase;
+    switch (phase.type) {
+      case PhaseType.Wait:
+        return;
+      case PhaseType.Drawing:
+        this.#phase = { ...phase, turn: { ...phase.turn, deadline: Math.max(phase.turn.deadline, earliest) } };
+        return;
+      case PhaseType.Ready:
+      case PhaseType.Vote:
+      case PhaseType.Answer:
+      case PhaseType.End:
+        this.#phase = { ...phase, deadline: Math.max(phase.deadline, earliest) };
+        return;
     }
   }
 

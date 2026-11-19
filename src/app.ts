@@ -20,6 +20,7 @@ import { JoinRoom } from './features/game/application/usecases/join-room.js';
 import { LeaveRoom } from './features/game/application/usecases/leave-room.js';
 import { PlayAgain } from './features/game/application/usecases/play-again.js';
 import { React } from './features/game/application/usecases/react.js';
+import { RestoreRooms } from './features/game/application/usecases/restore-rooms.js';
 import { StartGame } from './features/game/application/usecases/start-game.js';
 import { SubmitAnswer } from './features/game/application/usecases/submit-answer.js';
 import { TypeAnswer } from './features/game/application/usecases/type-answer.js';
@@ -27,7 +28,7 @@ import { Vote } from './features/game/application/usecases/vote.js';
 import { PLAYER_COUNT, type GameOption } from './features/game/domain/game-option.js';
 import type { Limits } from './features/game/domain/limits.js';
 import { JsonKeywordRepository } from './features/game/infrastructure/keywords/json-keyword-repository.js';
-import { MemoryRoomRepository } from './features/game/infrastructure/memory/memory-room-repository.js';
+import { SqliteRoomRepository } from './features/game/infrastructure/sqlite/sqlite-room-repository.js';
 import { parseBearer } from './shared/adapters/http/bearer.js';
 import { WS_PATH } from './shared/adapters/ws/protocol.js';
 import { WsRouter } from './shared/adapters/ws/router.js';
@@ -71,7 +72,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     reissueToken: new ReissueToken(tokens),
   });
 
-  const rooms = new MemoryRoomRepository();
+  const rooms = SqliteRoomRepository.open(env.SQLITE_PATH, clock, logger, env.EMPTY_ROOM_TTL_MS);
   registerPlayingRoomRoute(http, { tokens, getPlayingRoom: new GetPlayingRoom(rooms) });
 
   const ws = new WsServer(
@@ -116,7 +117,6 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
         rooms,
         membership,
         publisher,
-        scheduler,
         clock,
         env.WAIT_DISCONNECT_GRACE_MS,
       ),
@@ -125,6 +125,8 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     }),
   });
 
+  new RestoreRooms(rooms, membership, timer, clock, env.RESTORE_GRACE_MS, env.WAIT_DISCONNECT_GRACE_MS).execute();
+
   const cleanupRooms = new CleanupRooms(rooms, scheduler, clock, env.EMPTY_ROOM_TTL_MS);
   const cleanupTimer = setInterval(() => cleanupRooms.execute(), env.ROOM_CLEANUP_INTERVAL_MS);
 
@@ -132,6 +134,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     clearInterval(cleanupTimer);
     ws.close();
     scheduler.cancelAll();
+    rooms.close();
   });
 
   return http;
