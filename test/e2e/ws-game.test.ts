@@ -93,7 +93,8 @@ describe('WebSocket game', () => {
   }
 
   it('plays a game from START_GAME to PLAY_AGAIN', async () => {
-    await boot();
+    // The vote waits for its deadline even when everyone has voted.
+    await boot({ GAME_VOTE_MS: '500' });
     const players = await threePlayers();
     const { mafia, ready, order, turn } = await startGame(players);
 
@@ -127,7 +128,7 @@ describe('WebSocket game', () => {
       citizen.client.send('VOTE', { targetId: mafia.userId });
       await expectNext(players, 'VOTES');
     }
-    mafia.client.send('VOTE', { targetId: citizens[0]!.userId });
+    mafia.client.send('VOTE', { targetId: mafia.userId });
     const [votes] = await expectNext(players, 'VOTES');
     expect(Object.keys(votes!.data.votes)).toHaveLength(3);
     const [answer] = await expectNext(players, 'ROOM');

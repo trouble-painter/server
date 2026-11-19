@@ -37,7 +37,7 @@ function votingRoom(): Room {
   while (room.phase.type === PhaseType.Drawing) {
     room.expire(room.version, room.deadline!);
   }
-  room.vote(A, C, room.deadline! - 1);
+  room.vote(A, C);
   return room;
 }
 
@@ -61,12 +61,12 @@ export function roomsInEveryPhase(): Record<PhaseType, Room> {
   const vote = votingRoom();
 
   const answer = votingRoom();
-  answer.vote(B, C, answer.deadline! - 1);
+  answer.vote(B, C);
   answer.expire(answer.version, answer.deadline!);
   answer.typeAnswer(C, '바다');
 
   const end = votingRoom();
-  end.vote(B, C, end.deadline! - 1);
+  end.vote(B, C);
   end.expire(end.version, end.deadline!);
   end.submitAnswer(C, '도시', end.deadline! - 1);
 

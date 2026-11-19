@@ -28,7 +28,6 @@ export type RoomEvent =
     }
   | { readonly type: RoomEventType.SketchCleared; readonly drawerId: UserId }
   | { readonly type: RoomEventType.ReactionSent; readonly userId: UserId; readonly reaction: Reaction }
-  /** Carries the votes because the vote may already be tallied when the event is published. */
   | { readonly type: RoomEventType.VotesChanged; readonly votes: ReadonlyMap<UserId, UserId> }
   | { readonly type: RoomEventType.AnswerTyped; readonly mafiaId: UserId; readonly answer: string }
   /** The room is over and the caller deletes it. */

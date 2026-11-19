@@ -61,15 +61,22 @@ describe('Matchmaking', () => {
 
   it('replies with the count and tells the others', () => {
     const [first, second] = join(1, 2);
-    expect(first).toEqual({ locale: Locale.Ko, waitingCount: 1 });
-    expect(second).toEqual({ locale: Locale.Ko, waitingCount: 2 });
-    expect(sent).toEqual([[uid(1), { locale: Locale.Ko, waitingCount: 2 }]]);
+    expect(first).toEqual({ locale: Locale.Ko, waitingCount: 1, startsAt: null, minCount: RULE.min, waitMs: RULE.waitMs });
+    expect(second).toEqual({ locale: Locale.Ko, waitingCount: 2, startsAt: null, minCount: RULE.min, waitMs: RULE.waitMs });
+    expect(sent).toEqual([[uid(1), { locale: Locale.Ko, waitingCount: 2, startsAt: null, minCount: RULE.min, waitMs: RULE.waitMs }]]);
     expect(released).toEqual([uid(1), uid(2)]);
   });
 
   it('refuses a user in a game and leaves the queue alone', () => {
     expect(() => matchmaking.join(IN_GAME, nick(99), Locale.Ko)).toThrow(GameError);
     expect(matchmaking.connect(IN_GAME)).toBeNull();
+  });
+
+  it('tells everyone when the game starts once min players wait', () => {
+    const [, , third] = join(1, 2, 3);
+    const startsAt = clock.time + RULE.waitMs;
+    expect(third).toEqual({ locale: Locale.Ko, waitingCount: 3, startsAt, minCount: RULE.min, waitMs: RULE.waitMs });
+    expect(sent.slice(-2)).toEqual([1, 2].map((n) => [uid(n), { locale: Locale.Ko, waitingCount: 3, startsAt, minCount: RULE.min, waitMs: RULE.waitMs }]));
   });
 
   it('matches min players when the deadline passes', () => {
@@ -91,21 +98,21 @@ describe('Matchmaking', () => {
   it('moves a user to the queue of the locale they join', () => {
     join(1, 2);
     matchmaking.join(uid(1), nick(1), Locale.En);
-    expect(sent.at(-1)).toEqual([uid(2), { locale: Locale.Ko, waitingCount: 1 }]);
-    expect(matchmaking.connect(uid(1))).toEqual({ locale: Locale.En, waitingCount: 1 });
+    expect(sent.at(-1)).toEqual([uid(2), { locale: Locale.Ko, waitingCount: 1, startsAt: null, minCount: RULE.min, waitMs: RULE.waitMs }]);
+    expect(matchmaking.connect(uid(1))).toEqual({ locale: Locale.En, waitingCount: 1, startsAt: null, minCount: RULE.min, waitMs: RULE.waitMs });
   });
 
   it('release takes the user out and is harmless when they are not queued', () => {
     join(1, 2);
     matchmaking.release(uid(1));
-    expect(sent.at(-1)).toEqual([uid(2), { locale: Locale.Ko, waitingCount: 1 }]);
+    expect(sent.at(-1)).toEqual([uid(2), { locale: Locale.Ko, waitingCount: 1, startsAt: null, minCount: RULE.min, waitMs: RULE.waitMs }]);
     expect(() => matchmaking.release(uid(1))).not.toThrow();
   });
 
   it('drops a user who stays disconnected past the grace period', () => {
     join(1, 2, 3);
     matchmaking.disconnect(uid(3));
-    expect(sent.at(-1)).toEqual([uid(2), { locale: Locale.Ko, waitingCount: 2 }]);
+    expect(sent.at(-1)).toEqual([uid(2), { locale: Locale.Ko, waitingCount: 2, startsAt: null, minCount: RULE.min, waitMs: RULE.waitMs }]);
     expect(scheduler.tasks.has(matchDeadlineKey(Locale.Ko))).toBe(false);
     scheduler.fire(queueLeaveKey(uid(3)));
     expect(matchmaking.connect(uid(3))).toBeNull();
@@ -114,11 +121,14 @@ describe('Matchmaking', () => {
   it('a user back in time keeps their place and the match is retried after HELLO', () => {
     join(1, 2, 3);
     matchmaking.disconnect(uid(1));
-    expect(matchmaking.connect(uid(1))).toEqual({ locale: Locale.Ko, waitingCount: 3 });
+    expect(matchmaking.connect(uid(1))).toEqual({ locale: Locale.Ko, waitingCount: 3, startsAt: null, minCount: RULE.min, waitMs: RULE.waitMs });
     expect(scheduler.tasks.has(queueLeaveKey(uid(1)))).toBe(false);
     expect(scheduler.tasks.get(matchDeadlineKey(Locale.Ko))?.delayMs).toBe(0);
     scheduler.fire(matchDeadlineKey(Locale.Ko));
     expect(scheduler.tasks.get(matchDeadlineKey(Locale.Ko))?.delayMs).toBe(RULE.waitMs);
+    // The start time set by the retry reaches everyone waiting.
+    const startsAt = clock.time + RULE.waitMs;
+    expect(sent.slice(-3)).toEqual([1, 2, 3].map((n) => [uid(n), { locale: Locale.Ko, waitingCount: 3, startsAt, minCount: RULE.min, waitMs: RULE.waitMs }]));
   });
 
   it('pushes with the longest waiter after the wait, then not again within the cooldown', () => {

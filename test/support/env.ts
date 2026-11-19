@@ -42,6 +42,10 @@ export const TEST_ENV_SOURCE: Readonly<Record<string, string>> = {
   PUSH_BODY_KO: '{nickname}님이 기다려요.',
   PUSH_TITLE_EN: 'Title',
   PUSH_BODY_EN: '{nickname} is waiting.',
+  PUSH_GAME_START_TITLE_KO: '시작 제목',
+  PUSH_GAME_START_BODY_KO: '시작 본문',
+  PUSH_GAME_START_TITLE_EN: 'Start title',
+  PUSH_GAME_START_BODY_EN: 'Start body',
 };
 
 export function testEnv(overrides: Record<string, string> = {}): Env {

@@ -15,18 +15,27 @@ const nonNegativeInt = z.coerce.number().int().min(0);
 const flag = z.enum(['true', 'false']).transform((value) => value === 'true');
 
 type LocaleKey = Uppercase<`${Locale}`>;
-type PushTextKey = `PUSH_TITLE_${LocaleKey}` | `PUSH_BODY_${LocaleKey}`;
 
-/** `PUSH_TITLE_<LOCALE>` and `PUSH_BODY_<LOCALE>` for every locale, so a new locale cannot go without text. */
-const PushTextShape = Object.fromEntries(
-  Object.values(Locale).flatMap((locale) => {
-    const key = locale.toUpperCase();
-    return [
-      [`PUSH_TITLE_${key}`, z.string().min(1)],
-      [`PUSH_BODY_${key}`, z.string().min(1)],
-    ];
-  }),
-) as Record<PushTextKey, z.ZodString>;
+/** The env key prefix of each push's title and body */
+export enum PushTextPrefix {
+  QuickStart = 'PUSH_',
+  GameStart = 'PUSH_GAME_START_',
+}
+
+type PushTextKey<P extends PushTextPrefix> = `${P}TITLE_${LocaleKey}` | `${P}BODY_${LocaleKey}`;
+
+/** `<prefix>TITLE_<LOCALE>` and `<prefix>BODY_<LOCALE>` for every locale, so a new locale cannot go without text. */
+function pushTextShape<P extends PushTextPrefix>(prefix: P): Record<PushTextKey<P>, z.ZodString> {
+  return Object.fromEntries(
+    Object.values(Locale).flatMap((locale) => {
+      const key = locale.toUpperCase();
+      return [
+        [`${prefix}TITLE_${key}`, z.string().min(1)],
+        [`${prefix}BODY_${key}`, z.string().min(1)],
+      ];
+    }),
+  ) as Record<PushTextKey<P>, z.ZodString>;
+}
 
 const EnvSchema = z.object({
   APP_ENV: AppEnvSchema,
@@ -67,15 +76,19 @@ const EnvSchema = z.object({
   FCM_CREDENTIALS_PATH: z.string().min(1),
   PUSH_WAIT_MS: positiveInt,
   PUSH_COOLDOWN_MS: positiveInt,
-  ...PushTextShape,
+  ...pushTextShape(PushTextPrefix.QuickStart),
+  ...pushTextShape(PushTextPrefix.GameStart),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
 
-/** The push title and body for `locale`. */
-export function pushTextOf(env: Env, locale: Locale): { title: string; body: string } {
+/** The title and body of the push named by `prefix`, for `locale`. */
+export function pushTextOf(env: Env, prefix: PushTextPrefix, locale: Locale): { title: string; body: string } {
   const key = locale.toUpperCase() as LocaleKey;
-  return { title: env[`PUSH_TITLE_${key}`], body: env[`PUSH_BODY_${key}`] };
+  return {
+    title: env[`${prefix}TITLE_${key}` as PushTextKey<PushTextPrefix>],
+    body: env[`${prefix}BODY_${key}` as PushTextKey<PushTextPrefix>],
+  };
 }
 
 export function envFilePath(appEnv: AppEnv): string {

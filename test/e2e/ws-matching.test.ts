@@ -67,11 +67,16 @@ describe('WebSocket quick start', () => {
 
     expect(await a.client.request('MATCH_JOIN', { nickname: 'A', locale: 'KO' })).toEqual({
       type: 'MATCHING',
-      data: { locale: 'KO', waitingCount: 1 },
+      data: { locale: 'KO', waitingCount: 1, startsAt: null, minCount: 3, waitMs: 100 },
     });
     expect((await b.client.request('MATCH_JOIN', { nickname: 'B', locale: 'KO' })).data.waitingCount).toBe(2);
     expect((await a.client.next()).data.waitingCount).toBe(2);
-    expect((await c.client.request('MATCH_JOIN', { nickname: 'C', locale: 'KO' })).data.waitingCount).toBe(3);
+    const third = (await c.client.request('MATCH_JOIN', { nickname: 'C', locale: 'KO' })).data;
+    expect(third.waitingCount).toBe(3);
+    expect(third.startsAt).toEqual(expect.any(Number));
+    for (const player of [a, b]) {
+      expect((await player.client.next()).data).toMatchObject({ waitingCount: 3, startsAt: third.startsAt, minCount: 3, waitMs: 100 });
+    }
 
     for (const player of [a, b, c]) {
       const ready = await nextOfType(player.client, 'ROOM');
@@ -94,7 +99,7 @@ describe('WebSocket quick start', () => {
     await a.client.next();
 
     expect(await b.client.request('MATCH_CANCEL')).toEqual({ type: 'IDLE', data: { reason: 'MATCH_CANCELED' } });
-    expect(await a.client.next()).toEqual({ type: 'MATCHING', data: { locale: 'KO', waitingCount: 1 } });
+    expect(await a.client.next()).toEqual({ type: 'MATCHING', data: { locale: 'KO', waitingCount: 1, startsAt: null, minCount: 3, waitMs: 100 } });
   });
 
   it('a user who reconnects while queued gets the queue in HELLO', async () => {

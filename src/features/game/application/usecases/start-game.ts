@@ -1,6 +1,7 @@
 import type { Clock } from '../../../../shared/application/ports/clock.js';
 import type { Random } from '../../../../shared/application/ports/random.js';
 import type { UserId } from '../../../../shared/domain/user-id.js';
+import type { GameStartPush } from '../game-start-push.js';
 import { requireRoom } from '../membership.js';
 import type { PhaseTimer } from '../phase-timer.js';
 import type { KeywordRepository } from '../ports/keyword-repository.js';
@@ -16,6 +17,7 @@ export class StartGame {
     private readonly keywords: KeywordRepository,
     private readonly random: Random,
     private readonly clock: Clock,
+    private readonly push: GameStartPush,
   ) {}
 
   /** Everyone, the host included, gets the new phase as a ROOM of their own. */
@@ -26,5 +28,6 @@ export class StartGame {
     this.rooms.save(room);
     this.publisher.publish(room, events);
     this.timer.sync(room);
+    this.push.notify(room, userId);
   }
 }

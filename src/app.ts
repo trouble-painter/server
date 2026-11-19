@@ -7,8 +7,10 @@ import { registerGameHandlers } from './features/game/adapters/ws/game-handlers.
 import { connectionHandlers, registerRoomHandlers } from './features/game/adapters/ws/room-handlers.js';
 import { mapGameError } from './features/game/adapters/ws/wire.js';
 import { WsRoomEventPublisher } from './features/game/adapters/ws/ws-room-event-publisher.js';
+import { GameStartPush } from './features/game/application/game-start-push.js';
 import { Membership } from './features/game/application/membership.js';
 import { PhaseTimer } from './features/game/application/phase-timer.js';
+import type { GameStartPushSender } from './features/game/application/ports/game-start-push-sender.js';
 import { CleanupRooms } from './features/game/application/usecases/cleanup-rooms.js';
 import { ConnectUser } from './features/game/application/usecases/connect-user.js';
 import { ClearSketch } from './features/game/application/usecases/clear-sketch.js';
@@ -42,7 +44,7 @@ import { parseBearer } from './shared/adapters/http/bearer.js';
 import { WS_PATH } from './shared/adapters/ws/protocol.js';
 import { WsRouter } from './shared/adapters/ws/router.js';
 import { Locale } from './shared/domain/locale.js';
-import { pushTextOf, type Env } from './shared/infrastructure/config/env.js';
+import { pushTextOf, PushTextPrefix, type Env } from './shared/infrastructure/config/env.js';
 import { RandomIdGenerator } from './shared/infrastructure/id/random-id-generator.js';
 import { CryptoRandom } from './shared/infrastructure/random/crypto-random.js';
 import { SystemClock } from './shared/infrastructure/time/system-clock.js';
@@ -100,7 +102,18 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
   const timer = new PhaseTimer(rooms, publisher, scheduler, clock);
 
   const notifier = createPushNotifier(env, logger);
-  const startQuickStartGame = new StartQuickStartGame(rooms, publisher, timer, ids, option, keywords, random, clock);
+  const gameStartPush = new GameStartPush(notifier);
+  const startQuickStartGame = new StartQuickStartGame(
+    rooms,
+    publisher,
+    timer,
+    ids,
+    option,
+    keywords,
+    random,
+    clock,
+    gameStartPush,
+  );
   const matchmaking = new Matchmaking(
     createMatchRule({ min: env.MATCH_MIN, target: env.MATCH_TARGET, waitMs: env.MATCH_WAIT_MS }, PLAYER_COUNT),
     { waitMs: env.PUSH_WAIT_MS, cooldownMs: env.PUSH_COOLDOWN_MS },
@@ -120,15 +133,16 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     leaveRoom: new LeaveRoom(rooms, membership, publisher, clock),
   });
   registerGameHandlers(router, limits, {
-    startGame: new StartGame(rooms, publisher, timer, keywords, random, clock),
+    startGame: new StartGame(rooms, publisher, timer, keywords, random, clock, gameStartPush),
     drawStroke: new DrawStroke(rooms, publisher, clock),
     clearSketch: new ClearSketch(rooms, publisher, clock),
     endTurn: new EndTurn(rooms, publisher, timer, clock),
     react: new React(rooms, publisher, clock, env.REACTION_THROTTLE_MS),
-    vote: new Vote(rooms, publisher, timer, clock),
+    vote: new Vote(rooms, publisher),
     typeAnswer: new TypeAnswer(rooms, publisher),
     submitAnswer: new SubmitAnswer(rooms, publisher, timer, clock),
     playAgain: new PlayAgain(rooms, publisher, timer, clock),
+    gameStartPush,
   });
   registerMatchingHandlers(router, { matchmaking });
   ws.listen(http.server, {
@@ -170,10 +184,18 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
   return http;
 }
 
-function createPushNotifier(env: Env, logger: FastifyBaseLogger): PushNotifier {
+function createPushNotifier(env: Env, logger: FastifyBaseLogger): PushNotifier & GameStartPushSender {
   if (!env.PUSH_ENABLED) {
     return new LogPushNotifier(logger);
   }
-  const texts = Object.fromEntries(Object.values(Locale).map((locale) => [locale, pushTextOf(env, locale)]));
-  return FcmPushNotifier.create(env.FCM_CREDENTIALS_PATH, texts as Record<Locale, PushText>, logger);
+  const textsOf = (prefix: PushTextPrefix) =>
+    Object.fromEntries(Object.values(Locale).map((locale) => [locale, pushTextOf(env, prefix, locale)])) as Record<
+      Locale,
+      PushText
+    >;
+  return FcmPushNotifier.create(
+    env.FCM_CREDENTIALS_PATH,
+    { quickStart: textsOf(PushTextPrefix.QuickStart), gameStart: textsOf(PushTextPrefix.GameStart) },
+    logger,
+  );
 }

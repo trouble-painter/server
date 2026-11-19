@@ -66,7 +66,7 @@ describe('MatchQueue', () => {
   it('neither counts nor matches disconnected players', () => {
     const queue = queueOf(4);
     queue.setConnected(uid(2), false);
-    expect(queue.status).toEqual({ locale: Locale.Ko, waitingCount: 3 });
+    expect(queue.status).toEqual({ locale: Locale.Ko, waitingCount: 3, startsAt: T0 + 3 + RULE.waitMs, minCount: RULE.min, waitMs: RULE.waitMs });
     expect(ids(queue.settle(queue.deadline!))).toEqual([1, 3, 4].map(uid));
     expect(queue.has(uid(2))).toBe(true);
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Locale } from '../../../../src/shared/domain/locale.js';
-import { AppEnv, envFilePath, parseEnv, pushTextOf } from '../../../../src/shared/infrastructure/config/env.js';
+import { AppEnv, envFilePath, parseEnv, pushTextOf, PushTextPrefix } from '../../../../src/shared/infrastructure/config/env.js';
 import { TEST_ENV_SOURCE } from '../../../support/env.js';
 
 const VALID = TEST_ENV_SOURCE;
@@ -48,10 +48,24 @@ describe('parseEnv', () => {
     expect(() => parseEnv({ ...VALID, PUSH_ENABLED: 'yes' })).toThrow(/PUSH_ENABLED/);
   });
 
-  it('reads the push text of each locale', () => {
+  it('reads the text of each push and locale', () => {
     const env = parseEnv(VALID);
-    expect(pushTextOf(env, Locale.Ko)).toEqual({ title: VALID.PUSH_TITLE_KO, body: VALID.PUSH_BODY_KO });
-    expect(pushTextOf(env, Locale.En)).toEqual({ title: VALID.PUSH_TITLE_EN, body: VALID.PUSH_BODY_EN });
+    expect(pushTextOf(env, PushTextPrefix.QuickStart, Locale.Ko)).toEqual({
+      title: VALID.PUSH_TITLE_KO,
+      body: VALID.PUSH_BODY_KO,
+    });
+    expect(pushTextOf(env, PushTextPrefix.QuickStart, Locale.En)).toEqual({
+      title: VALID.PUSH_TITLE_EN,
+      body: VALID.PUSH_BODY_EN,
+    });
+    expect(pushTextOf(env, PushTextPrefix.GameStart, Locale.Ko)).toEqual({
+      title: VALID.PUSH_GAME_START_TITLE_KO,
+      body: VALID.PUSH_GAME_START_BODY_KO,
+    });
+    expect(pushTextOf(env, PushTextPrefix.GameStart, Locale.En)).toEqual({
+      title: VALID.PUSH_GAME_START_TITLE_EN,
+      body: VALID.PUSH_GAME_START_BODY_EN,
+    });
   });
 });
 

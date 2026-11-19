@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { ClientMessageType } from '../../../../shared/adapters/ws/protocol.js';
 import type { WsRouter } from '../../../../shared/adapters/ws/router.js';
 import { toUserId, type UserId } from '../../../../shared/domain/user-id.js';
+import type { GameStartPush } from '../../application/game-start-push.js';
 import type { ClearSketch } from '../../application/usecases/clear-sketch.js';
 import type { DrawStroke } from '../../application/usecases/draw-stroke.js';
 import type { EndTurn } from '../../application/usecases/end-turn.js';
@@ -22,6 +23,9 @@ const UserIdSchema = z.number().transform((value, ctx): UserId => {
   }
   return userId;
 });
+
+/** FCM tokens are about 160 characters; this only bounds what is kept in memory. */
+const PUSH_TOKEN_MAX_LENGTH = 4096;
 
 const CanvasSchema = z.object({ w: z.number().positive(), h: z.number().positive() });
 
@@ -46,10 +50,15 @@ export function registerGameHandlers(
     typeAnswer: TypeAnswer;
     submitAnswer: SubmitAnswer;
     playAgain: PlayAgain;
+    gameStartPush: GameStartPush;
   },
 ): void {
   const answer = z.object({ answer: z.string().max(limits.maxAnswerLength) });
 
+  router.register(ClientMessageType.PushToken, z.object({ token: z.string().min(1).max(PUSH_TOKEN_MAX_LENGTH) }), (userId, { token }) => {
+    deps.gameStartPush.register(userId, token);
+    return null;
+  });
   router.register(ClientMessageType.StartGame, z.object({}), (userId) => {
     deps.startGame.execute(userId);
     return null;

@@ -176,49 +176,58 @@ describe('Room game flow', () => {
     expect(drawing.react(A, Reaction.Heart)).toEqual([{ type: RoomEventType.ReactionSent, userId: A, reaction: Reaction.Heart }]);
   });
 
-  it('refuses a vote for oneself or a non-player, and lets a voter change their vote', () => {
-    const { room, now } = votingRoom();
-    expect(codeOf(() => room.vote(A, A, now))).toBe(GameErrorCode.InvalidRequest);
-    expect(codeOf(() => room.vote(A, uid(99), now))).toBe(GameErrorCode.InvalidRequest);
-    room.vote(A, B, now);
-    const events = room.vote(A, C, now);
+  it('refuses a vote for a non-player, accepts one for oneself, and lets a voter change their vote', () => {
+    const { room } = votingRoom();
+    expect(codeOf(() => room.vote(A, uid(99)))).toBe(GameErrorCode.InvalidRequest);
+    expect(room.vote(A, A)).toEqual([{ type: RoomEventType.VotesChanged, votes: new Map([[A, A]]) }]);
+    room.vote(A, B);
+    const events = room.vote(A, C);
     expect(events).toEqual([{ type: RoomEventType.VotesChanged, votes: new Map([[A, C]]) }]);
     expect(phase(room, PhaseType.Vote).votes).toEqual(new Map([[A, C]]));
   });
 
-  it('tallies once every connected player has voted; a caught mafia gets to guess', () => {
+  it('keeps the vote open until the deadline even when everyone has voted', () => {
     const { room, now } = votingRoom();
-    room.setConnected(B, false, now);
-    room.vote(A, C, now);
-    const events = room.vote(C, A, now);
-    // A tie between C and A: nobody is accused.
-    expect(events.map((e) => e.type)).toEqual([RoomEventType.VotesChanged, RoomEventType.PhaseChanged]);
+    room.vote(A, C);
+    room.vote(B, C);
+    expect(room.vote(C, A)).toEqual([{ type: RoomEventType.VotesChanged, votes: new Map([[A, C], [B, C], [C, A]]) }]);
+    expect(phase(room, PhaseType.Vote).deadline).toBe(now + TEST_OPTION.voteMs);
+  });
+
+  it('a tie accuses nobody, so the mafia wins', () => {
+    const { room, now } = votingRoom();
+    room.vote(A, C);
+    room.vote(C, A);
+    room.expire(room.version, now + TEST_OPTION.voteMs);
     expect(phase(room, PhaseType.End).result).toEqual({ mafiaId: C, accusedId: null, mafiaGuess: null, winner: Role.Mafia });
   });
 
   it('the mafia wins when the vote accuses someone else', () => {
     const { room, now } = votingRoom();
-    room.vote(A, B, now);
-    room.vote(C, B, now);
-    room.vote(B, A, now);
+    room.vote(A, B);
+    room.vote(C, B);
+    room.vote(B, A);
+    room.expire(room.version, now + TEST_OPTION.voteMs);
     expect(phase(room, PhaseType.End)).toMatchObject({
       result: { accusedId: B, winner: Role.Mafia },
-      deadline: now + TEST_OPTION.endMs,
+      deadline: now + TEST_OPTION.voteMs + TEST_OPTION.endMs,
     });
   });
 
   it('an unfinished vote is tallied at the deadline', () => {
     const { room, now } = votingRoom();
-    room.vote(A, C, now);
+    room.vote(A, C);
     room.expire(room.version, now + TEST_OPTION.voteMs);
     expect(phase(room, PhaseType.Answer)).toMatchObject({ typing: '', deadline: now + TEST_OPTION.voteMs + TEST_OPTION.answerMs });
   });
 
   function answeringRoom(): { room: Room; now: number } {
-    const { room, now } = votingRoom();
-    room.vote(A, C, now);
-    room.vote(B, C, now);
-    room.vote(C, A, now);
+    const { room, now: voteFrom } = votingRoom();
+    room.vote(A, C);
+    room.vote(B, C);
+    room.vote(C, A);
+    const now = voteFrom + TEST_OPTION.voteMs;
+    room.expire(room.version, now);
     phase(room, PhaseType.Answer);
     return { room, now };
   }

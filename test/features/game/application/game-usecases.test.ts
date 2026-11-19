@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { GameStartPush } from '../../../../src/features/game/application/game-start-push.js';
 import { Membership } from '../../../../src/features/game/application/membership.js';
 import { phaseTimerKey, PhaseTimer } from '../../../../src/features/game/application/phase-timer.js';
 import type { RoomEventPublisher } from '../../../../src/features/game/application/ports/room-event-publisher.js';
@@ -50,6 +51,8 @@ describe('game use cases', () => {
   let clock: FakeClock;
   let membership: Membership;
   let timer: PhaseTimer;
+  let pushed: [Locale, readonly string[]][];
+  let push: GameStartPush;
   let room: Room;
 
   beforeEach(() => {
@@ -59,6 +62,8 @@ describe('game use cases', () => {
     clock = new FakeClock();
     membership = new Membership(rooms, publisher, scheduler, clock);
     timer = new PhaseTimer(rooms, publisher, scheduler, clock);
+    pushed = [];
+    push = new GameStartPush({ notifyGameStarted: (locale, tokens) => pushed.push([locale, tokens]) });
     room = new CreateRoom(rooms, membership, new RecordingQueue(), ONE_CODE, TEST_OPTION).execute(A, NICK, Locale.Ko);
     const join = new JoinRoom(rooms, membership, new RecordingQueue(), publisher);
     join.execute(B, room.id, NICK);
@@ -76,7 +81,7 @@ describe('game use cases', () => {
   }
 
   function start(random = new FakeRandom()): void {
-    new StartGame(rooms, publisher, timer, new FixedKeywords(), random, clock).execute(A);
+    new StartGame(rooms, publisher, timer, new FixedKeywords(), random, clock, push).execute(A);
   }
 
   /** Fires the room's phase timer after moving the clock to its deadline. */
@@ -97,10 +102,19 @@ describe('game use cases', () => {
   });
 
   it('refuses to start for a non-host or outside a room', () => {
-    const startGame = new StartGame(rooms, publisher, timer, new FixedKeywords(), new FakeRandom(), clock);
+    const startGame = new StartGame(rooms, publisher, timer, new FixedKeywords(), new FakeRandom(), clock, push);
+    push.register(A, 'token-a');
     expect(errorCode(() => startGame.execute(B))).toBe(GameErrorCode.NotHost);
     expect(errorCode(() => startGame.execute(99 as UserId))).toBe(GameErrorCode.NotInRoom);
     expect(scheduler.tasks.size).toBe(0);
+    expect(pushed).toEqual([]);
+  });
+
+  it('a started game pushes to every player with a token but the host who started it', () => {
+    push.register(A, 'token-a');
+    push.register(B, 'token-b');
+    start();
+    expect(pushed).toEqual([[Locale.Ko, ['token-b']]]);
   });
 
   it('the timer walks the phases and re-arms for each new deadline', () => {
@@ -185,9 +199,23 @@ describe('game use cases', () => {
   });
 
   it('a quick-start game starts at once and closes its room after END', () => {
-    const quickStart = new StartQuickStartGame(rooms, publisher, timer, ids('QQQQQQ'), TEST_OPTION, new FixedKeywords(), new FakeRandom(), clock);
+    const quickStart = new StartQuickStartGame(
+      rooms,
+      publisher,
+      timer,
+      ids('QQQQQQ'),
+      TEST_OPTION,
+      new FixedKeywords(),
+      new FakeRandom(),
+      clock,
+      push,
+    );
     const [D, E, F] = [4, 5, 6] as UserId[] as [UserId, UserId, UserId];
+    push.register(D, 'token-d');
+    push.register(F, 'token-f');
     quickStart.execute(Locale.En, [D, E, F].map((userId) => ({ userId, nickname: NICK })));
+    // Nobody pressed start, so everyone with a token hears it.
+    expect(pushed).toEqual([[Locale.En, ['token-d', 'token-f']]]);
     const quick = rooms.findByUser(E)!;
     expect(quick).toMatchObject({ id: 'QQQQQQ', isQuickStart: true, hostId: D, locale: Locale.En });
     expect(quick.phase.type).toBe(PhaseType.Ready);

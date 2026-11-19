@@ -103,8 +103,10 @@ export class Matchmaking {
     this.#broadcast(queue, except);
   }
 
+  /** Tells the queue only when its status moved: someone matched, or the start time was set or cleared. */
   #matchAndTell(queue: MatchQueue): void {
-    if (this.#match(queue)) {
+    const startsAt = queue.deadline;
+    if (this.#match(queue) || queue.deadline !== startsAt) {
       this.#broadcast(queue);
     }
   }

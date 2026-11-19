@@ -21,7 +21,7 @@ describe('Room snapshot', () => {
     const snapshot = room.toSnapshot();
     expect(snapshot.phase).toMatchObject({ votes: [[A, C]] });
     const restored = Room.fromSnapshot(JSON.parse(JSON.stringify(snapshot)));
-    restored.vote(B, A, restored.deadline! - 1);
+    restored.vote(B, A);
     expect(restored.phase).toMatchObject({ votes: new Map([[A, C], [B, A]]) });
   });
 

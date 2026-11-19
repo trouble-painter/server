@@ -30,6 +30,12 @@ export interface QueueEntry {
 export interface MatchingStatus {
   readonly locale: Locale;
   readonly waitingCount: number;
+  /** When the waiting players will be matched; null until `min` are waiting. */
+  readonly startsAt: number | null;
+  /** How many must wait before the countdown to `startsAt` runs */
+  readonly minCount: number;
+  /** How long the countdown to `startsAt` runs once `min` are waiting */
+  readonly waitMs: number;
 }
 
 /** The quick-start queue of one locale, in join order. */
@@ -48,7 +54,13 @@ export class MatchQueue {
   }
 
   get status(): MatchingStatus {
-    return { locale: this.locale, waitingCount: this.#waiting().length };
+    return {
+      locale: this.locale,
+      waitingCount: this.#waiting().length,
+      startsAt: this.#deadline,
+      minCount: this.rule.min,
+      waitMs: this.rule.waitMs,
+    };
   }
 
   /** The connected players, earliest first. */

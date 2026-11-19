@@ -238,18 +238,15 @@ export class Room {
     return [{ type: RoomEventType.ReactionSent, userId, reaction }];
   }
 
-  /** Voting again changes the vote. Tallies as soon as every connected player has voted. */
-  vote(userId: UserId, targetId: UserId, now: number): RoomEvent[] {
+  /** Voting again changes the vote, and a vote for oneself counts. Tallied only at the deadline. */
+  vote(userId: UserId, targetId: UserId): RoomEvent[] {
     const phase = this.#phaseOf(PhaseType.Vote);
-    if (targetId === userId || !phase.game.turnOrder.includes(targetId)) {
+    if (!phase.game.turnOrder.includes(targetId)) {
       throw new GameError(GameErrorCode.InvalidRequest);
     }
     const votes = new Map(phase.votes).set(userId, targetId);
-    const voted = { ...phase, votes };
-    this.#phase = voted;
-    const everyoneVoted = this.#players.every((p) => !p.isConnected || votes.has(p.userId));
-    const changed: RoomEvent = { type: RoomEventType.VotesChanged, votes };
-    return everyoneVoted ? [changed, ...this.#tally(voted, now)] : [changed];
+    this.#phase = { ...phase, votes };
+    return [{ type: RoomEventType.VotesChanged, votes }];
   }
 
   typeAnswer(userId: UserId, answer: string): RoomEvent[] {

@@ -6,6 +6,7 @@ import type { UserId } from '../../../../shared/domain/user-id.js';
 import type { GameOption } from '../../domain/game-option.js';
 import type { Nickname } from '../../domain/nickname.js';
 import { Room } from '../../domain/room.js';
+import type { GameStartPush } from '../game-start-push.js';
 import type { PhaseTimer } from '../phase-timer.js';
 import type { KeywordRepository } from '../ports/keyword-repository.js';
 import type { RoomEventPublisher } from '../ports/room-event-publisher.js';
@@ -22,6 +23,7 @@ export class StartQuickStartGame {
     private readonly keywords: KeywordRepository,
     private readonly random: Random,
     private readonly clock: Clock,
+    private readonly push: GameStartPush,
   ) {}
 
   /** The matched players are in no room; the first becomes host. Everyone gets the READY room. */
@@ -45,5 +47,6 @@ export class StartQuickStartGame {
     this.rooms.save(room);
     this.publisher.publish(room, events);
     this.timer.sync(room);
+    this.push.notify(room);
   }
 }

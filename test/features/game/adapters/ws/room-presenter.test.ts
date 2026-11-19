@@ -59,9 +59,10 @@ describe('room presenter', () => {
     while (room.phase.type !== 'vote') {
       room.expire(room.version, 0);
     }
-    room.vote(A, B, 0);
-    room.vote(B, A, 0);
-    room.vote(C, A, 0);
+    room.vote(A, B);
+    room.vote(B, A);
+    room.vote(C, A);
+    room.expire(room.version, room.deadline!);
     expect((roomMessage(room, C).data as any).room.phase).toMatchObject({
       type: 'END',
       sketches: [],
@@ -74,9 +75,10 @@ describe('room presenter', () => {
     while (room.phase.type !== 'vote') {
       room.expire(room.version, 0);
     }
-    room.vote(A, C, 0);
-    room.vote(B, C, 0);
-    room.vote(C, A, 0);
+    room.vote(A, C);
+    room.vote(B, C);
+    room.vote(C, A);
+    room.expire(room.version, room.deadline!);
     expect((roomMessage(room, A).data as any).room.phase).toMatchObject({ type: 'ANSWER', accusedId: 3, typing: '' });
   });
 
@@ -115,9 +117,9 @@ describe('room presenter', () => {
   });
 
   it('HELLO carries the queue status of a queued user', () => {
-    const hello = helloMessage(7, TEST_LIMITS, null, { locale: Locale.En, waitingCount: 2 }, A).data as any;
+    const hello = helloMessage(7, TEST_LIMITS, null, { locale: Locale.En, waitingCount: 2, startsAt: null, minCount: 3, waitMs: 10_000 }, A).data as any;
     expect(hello.room).toBeNull();
-    expect(hello.matching).toEqual({ locale: 'EN', waitingCount: 2 });
+    expect(hello.matching).toEqual({ locale: 'EN', waitingCount: 2, startsAt: null, minCount: 3, waitMs: 10_000 });
     expect((helloMessage(7, TEST_LIMITS, null, null, A).data as any).matching).toBeNull();
   });
 });

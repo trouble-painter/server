@@ -20,6 +20,7 @@ export enum ClientMessageType {
   PlayAgain = 'PLAY_AGAIN',
   MatchJoin = 'MATCH_JOIN',
   MatchCancel = 'MATCH_CANCEL',
+  PushToken = 'PUSH_TOKEN',
 }
 
 export enum ServerMessageType {
