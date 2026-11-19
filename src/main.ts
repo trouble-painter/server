@@ -1,4 +1,4 @@
-import Fastify from 'fastify';
+import { buildApp } from './app.js';
 import { loadEnv, type Env } from './shared/infrastructure/config/env.js';
 import { createLogger } from './shared/infrastructure/logger/logger.js';
 
@@ -13,7 +13,7 @@ try {
 }
 
 const logger = createLogger(env.APP_ENV);
-const http = Fastify({ loggerInstance: logger });
+const http = buildApp(env, logger);
 
 await http.listen({ host: LISTEN_HOST, port: env.PORT });
 logger.info({ appEnv: env.APP_ENV }, 'server started');

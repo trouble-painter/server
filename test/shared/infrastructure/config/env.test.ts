@@ -30,6 +30,12 @@ describe('parseEnv', () => {
     expect(parseEnv({ ...VALID, PORT: '3000' }).PORT).toBe(3000);
     expect(parseEnv(VALID).PORT).toBe(8080);
   });
+
+  it('parses ACCESS_TOKEN_TTL_SEC and defaults it to one hour', () => {
+    expect(parseEnv({ ...VALID, ACCESS_TOKEN_TTL_SEC: '60' }).ACCESS_TOKEN_TTL_SEC).toBe(60);
+    expect(parseEnv(VALID).ACCESS_TOKEN_TTL_SEC).toBe(3600);
+    expect(() => parseEnv({ ...VALID, ACCESS_TOKEN_TTL_SEC: '0' })).toThrow(/ACCESS_TOKEN_TTL_SEC/);
+  });
 });
 
 describe('envFilePath', () => {

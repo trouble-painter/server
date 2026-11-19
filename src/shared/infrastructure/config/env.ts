@@ -12,6 +12,7 @@ const EnvSchema = z.object({
   APP_ENV: AppEnvSchema,
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
   JWT_SECRET: z.string().min(32),
+  ACCESS_TOKEN_TTL_SEC: z.coerce.number().int().positive().default(3600),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
