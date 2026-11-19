@@ -8,6 +8,9 @@ export enum AppEnv {
 
 const AppEnvSchema = z.enum(AppEnv);
 
+const positiveInt = (fallback: number) => z.coerce.number().int().positive().default(fallback);
+const nonNegativeInt = (fallback: number) => z.coerce.number().int().min(0).default(fallback);
+
 const EnvSchema = z.object({
   APP_ENV: AppEnvSchema,
   PORT: z.coerce.number().int().min(1).max(65535).default(8080),
@@ -20,6 +23,21 @@ const EnvSchema = z.object({
   WAIT_DISCONNECT_GRACE_MS: z.coerce.number().int().positive().default(30_000),
   EMPTY_ROOM_TTL_MS: z.coerce.number().int().positive().default(600_000),
   ROOM_CLEANUP_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+  GAME_READY_MS: positiveInt(5_000),
+  GAME_INTRO_ANIMATION_MS: nonNegativeInt(3_000),
+  GAME_ROUND_ANIMATION_MS: nonNegativeInt(2_000),
+  GAME_ROUNDS: positiveInt(2),
+  GAME_TURN_MS: positiveInt(10_000),
+  GAME_STROKES_PER_TURN: positiveInt(1),
+  GAME_VOTE_MS: positiveInt(30_000),
+  GAME_ANSWER_MS: positiveInt(20_000),
+  GAME_END_MS: positiveInt(15_000),
+  DRAW_THROTTLE_MS: positiveInt(50),
+  REACTION_THROTTLE_MS: positiveInt(500),
+  MAX_STROKE_POINTS: positiveInt(500),
+  MAX_ANSWER_LENGTH: positiveInt(20),
+  /** Holds `<locale>.json` per locale; the data is private, so it lives under `.env/`. */
+  KEYWORDS_DIR: z.string().min(1).default('.env/keywords'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

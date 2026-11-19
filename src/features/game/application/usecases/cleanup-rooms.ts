@@ -1,6 +1,7 @@
 import type { Clock } from '../../../../shared/application/ports/clock.js';
 import type { Scheduler } from '../../../../shared/application/ports/scheduler.js';
 import { waitLeaveKey } from '../membership.js';
+import { phaseTimerKey } from '../phase-timer.js';
 import type { RoomRepository } from '../ports/room-repository.js';
 
 export class CleanupRooms {
@@ -21,6 +22,7 @@ export class CleanupRooms {
       for (const player of room.players) {
         this.scheduler.cancel(waitLeaveKey(player.userId));
       }
+      this.scheduler.cancel(phaseTimerKey(room.id));
       this.rooms.delete(room);
     }
   }

@@ -1,18 +1,26 @@
 import { IdleReason, localeToWire, ServerMessageType, type ServerMessage } from '../../../../shared/adapters/ws/protocol.js';
-import type { Phase } from '../../domain/phase.js';
+import type { UserId } from '../../../../shared/domain/user-id.js';
+import type { GameOption } from '../../domain/game-option.js';
+import type { Limits } from '../../domain/limits.js';
+import { PhaseType, type Game, type Phase, type Result, type Sketch, type Stroke, type Turn } from '../../domain/phase.js';
+import { Role } from '../../domain/role.js';
+import { RoomEventType, type RoomEvent } from '../../domain/room-event.js';
 import type { Player, Room } from '../../domain/room.js';
-import { PHASE_WIRE, PLAYER_COLOR_WIRE } from './wire.js';
+import { PHASE_WIRE, PLAYER_COLOR_WIRE, REACTION_WIRE, ROLE_WIRE } from './wire.js';
 
-/** The single place a room becomes its wire form, for HELLO, ROOM and patches alike. */
-function roomView(room: Room) {
+/**
+ * The single place a room becomes its wire form, for HELLO, ROOM and patches alike.
+ * Built per viewer: only END reveals the mafia, and the mafia never gets the keyword in GameView.
+ */
+function roomView(room: Room, viewer: UserId) {
   return {
     id: room.id,
     locale: localeToWire(room.locale),
     isQuickStart: room.isQuickStart,
     hostId: room.hostId,
     players: room.players.map(playerView),
-    option: { minPlayers: room.option.minPlayers, maxPlayers: room.option.maxPlayers },
-    phase: phaseView(room.phase),
+    option: optionView(room.option),
+    phase: phaseView(room.phase, viewer),
   };
 }
 
@@ -25,20 +33,130 @@ function playerView(player: Readonly<Player>) {
   };
 }
 
-function phaseView(phase: Phase) {
-  return { type: PHASE_WIRE[phase.type] };
-}
-
-export function helloMessage(serverTime: number, room: Room | null): ServerMessage {
+function optionView(option: GameOption) {
   return {
-    type: ServerMessageType.Hello,
-    // TODO(M3): fill limits; TODO(M5): fill matching.
-    data: { serverTime, limits: {}, room: room === null ? null : roomView(room), matching: null },
+    minPlayers: option.minPlayers,
+    maxPlayers: option.maxPlayers,
+    readyMs: option.readyMs,
+    introAnimationMs: option.introAnimationMs,
+    roundAnimationMs: option.roundAnimationMs,
+    rounds: option.rounds,
+    turnMs: option.turnMs,
+    strokesPerTurn: option.strokesPerTurn,
+    voteMs: option.voteMs,
+    answerMs: option.answerMs,
+    endMs: option.endMs,
   };
 }
 
-export function roomMessage(room: Room): ServerMessage {
-  return { type: ServerMessageType.Room, data: { room: roomView(room) } };
+function limitsView(limits: Limits) {
+  return {
+    drawThrottleMs: limits.drawThrottleMs,
+    reactionThrottleMs: limits.reactionThrottleMs,
+    maxStrokePoints: limits.maxStrokePoints,
+    maxAnswerLength: limits.maxAnswerLength,
+  };
+}
+
+function phaseView(phase: Phase, viewer: UserId) {
+  const type = PHASE_WIRE[phase.type];
+  switch (phase.type) {
+    case PhaseType.Wait:
+      return { type };
+    case PhaseType.Ready:
+      return { type, game: gameView(phase.game, viewer), deadline: phase.deadline };
+    case PhaseType.Drawing:
+      return {
+        type,
+        game: gameView(phase.game, viewer),
+        turn: turnView(phase.turn),
+        sketches: phase.sketches.map(sketchView),
+        current: phase.current === null ? null : sketchView(phase.current),
+      };
+    case PhaseType.Vote:
+      return {
+        type,
+        game: gameView(phase.game, viewer),
+        sketches: phase.sketches.map(sketchView),
+        votes: votesView(phase.votes),
+        deadline: phase.deadline,
+      };
+    case PhaseType.Answer:
+      return {
+        type,
+        game: gameView(phase.game, viewer),
+        sketches: phase.sketches.map(sketchView),
+        typing: phase.typing,
+        deadline: phase.deadline,
+      };
+    case PhaseType.End:
+      return {
+        type,
+        game: gameView(phase.game, viewer),
+        sketches: phase.sketches.map(sketchView),
+        result: resultView(phase.result, phase.game.keyword),
+        deadline: phase.deadline,
+      };
+  }
+}
+
+function gameView(game: Game, viewer: UserId) {
+  const isMafia = viewer === game.mafiaId;
+  return {
+    role: ROLE_WIRE[isMafia ? Role.Mafia : Role.Citizen],
+    category: game.category,
+    keyword: isMafia ? null : game.keyword,
+    turnOrder: [...game.turnOrder],
+  };
+}
+
+function turnView(turn: Turn) {
+  return {
+    round: turn.round,
+    turn: turn.turn,
+    drawerId: turn.drawerId,
+    startedAt: turn.startedAt,
+    drawFrom: turn.drawFrom,
+    deadline: turn.deadline,
+  };
+}
+
+function sketchView(sketch: Sketch) {
+  return {
+    userId: sketch.userId,
+    canvas: { w: sketch.canvas.w, h: sketch.canvas.h },
+    strokes: sketch.strokes.map(strokeView),
+  };
+}
+
+function strokeView(stroke: Stroke) {
+  return { x: [...stroke.x], y: [...stroke.y], t: [...stroke.t] };
+}
+
+function votesView(votes: ReadonlyMap<UserId, UserId>): Record<string, UserId> {
+  return Object.fromEntries(votes);
+}
+
+function resultView(result: Result, keyword: string) {
+  return {
+    mafiaId: result.mafiaId,
+    accusedId: result.accusedId,
+    answer: keyword,
+    mafiaGuess: result.mafiaGuess,
+    winner: ROLE_WIRE[result.winner],
+  };
+}
+
+export function helloMessage(serverTime: number, limits: Limits, room: Room | null, viewer: UserId): ServerMessage {
+  return {
+    type: ServerMessageType.Hello,
+    // TODO(M5): fill matching.
+    data: { serverTime, limits: limitsView(limits), room: room === null ? null : roomView(room, viewer), matching: null },
+  };
+}
+
+export function roomMessage(room: Room, viewer: UserId): ServerMessage {
+  return { type: ServerMessageType.Room, data: { room: roomView(room, viewer) } };
 }
 
 export function playersMessage(room: Room): ServerMessage {
@@ -47,4 +165,34 @@ export function playersMessage(room: Room): ServerMessage {
 
 export function idleMessage(reason: IdleReason): ServerMessage {
   return { type: ServerMessageType.Idle, data: { reason } };
+}
+
+/** What `viewer` is told about the event; null when it is not for them (their own stroke, reaction or answer). */
+export function eventMessage(room: Room, event: RoomEvent, viewer: UserId): ServerMessage | null {
+  switch (event.type) {
+    case RoomEventType.PlayersChanged:
+      return playersMessage(room);
+    case RoomEventType.PhaseChanged:
+      return roomMessage(room, viewer);
+    case RoomEventType.TurnChanged:
+      return {
+        type: ServerMessageType.Turn,
+        data: { turn: turnView(event.turn), sketch: event.sketch === null ? null : sketchView(event.sketch) },
+      };
+    case RoomEventType.StrokeUpdated:
+      return viewer === event.drawerId
+        ? null
+        : {
+            type: ServerMessageType.Stroke,
+            data: { index: event.index, stroke: strokeView(event.stroke), canvas: { w: event.canvas.w, h: event.canvas.h } },
+          };
+    case RoomEventType.ReactionSent:
+      return viewer === event.userId
+        ? null
+        : { type: ServerMessageType.Reaction, data: { userId: event.userId, reaction: REACTION_WIRE[event.reaction] } };
+    case RoomEventType.VotesChanged:
+      return { type: ServerMessageType.Votes, data: { votes: votesView(event.votes) } };
+    case RoomEventType.AnswerTyped:
+      return viewer === event.mafiaId ? null : { type: ServerMessageType.AnswerTyping, data: { answer: event.answer } };
+  }
 }

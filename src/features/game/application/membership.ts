@@ -11,6 +11,15 @@ export function waitLeaveKey(userId: UserId): string {
   return `wait-leave:${userId}`;
 }
 
+/** The user's room; throws when they are in none. */
+export function requireRoom(rooms: RoomRepository, userId: UserId): Room {
+  const room = rooms.findByUser(userId);
+  if (room === null) {
+    throw new GameError(GameErrorCode.NotInRoom);
+  }
+  return room;
+}
+
 /** Leaving rooms, shared by the use cases that take a user out of one. */
 export class Membership {
   constructor(

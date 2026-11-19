@@ -1,78 +1,18 @@
 import type { FastifyInstance } from 'fastify';
 import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { WebSocket } from 'ws';
 import { buildApp } from '../../src/app.js';
 import { parseEnv } from '../../src/shared/infrastructure/config/env.js';
+import { KEYWORDS_FIXTURE_DIR } from '../support/game.js';
+import { Client, type Message } from '../support/ws-client.js';
 
 const GRACE_MS = 150;
-const ENV = parseEnv({ APP_ENV: 'dev', JWT_SECRET: 'x'.repeat(32), WAIT_DISCONNECT_GRACE_MS: String(GRACE_MS) });
-const WAIT_MS = 2_000;
-
-interface Message {
-  type: string;
-  data: any;
-}
-
-/** A WebSocket client that buffers what it receives so tests can await messages in order. */
-class Client {
-  private readonly inbox: Message[] = [];
-  private waiter: (() => void) | null = null;
-  readonly closed: Promise<number>;
-
-  private constructor(private readonly ws: WebSocket) {
-    ws.on('message', (data) => {
-      this.inbox.push(JSON.parse(data.toString()));
-      this.waiter?.();
-    });
-    this.closed = new Promise((resolve) => ws.on('close', (code) => resolve(code)));
-  }
-
-  static open(url: string, token: string | null): Promise<Client> {
-    const headers = token === null ? {} : { authorization: `Bearer ${token}` };
-    const ws = new WebSocket(url, { headers });
-    const client = new Client(ws);
-    return new Promise((resolve, reject) => {
-      ws.once('open', () => resolve(client));
-      ws.once('unexpected-response', (_req, res) => reject(new Error(`HTTP ${res.statusCode}`)));
-    });
-  }
-
-  async next(): Promise<Message> {
-    const deadline = Date.now() + WAIT_MS;
-    while (this.inbox.length === 0) {
-      const remaining = deadline - Date.now();
-      if (remaining <= 0) {
-        throw new Error('timed out waiting for a message');
-      }
-      await new Promise<void>((resolve) => {
-        this.waiter = resolve;
-        setTimeout(resolve, remaining);
-      });
-      this.waiter = null;
-    }
-    return this.inbox.shift()!;
-  }
-
-  send(type: string, data: unknown = {}): void {
-    this.ws.send(JSON.stringify({ type, data }));
-  }
-
-  async request(type: string, data: unknown = {}): Promise<Message> {
-    this.send(type, data);
-    return this.next();
-  }
-
-  get pending(): number {
-    return this.inbox.length;
-  }
-
-  close(): Promise<number> {
-    this.ws.close();
-    return this.closed;
-  }
-}
-
+const ENV = parseEnv({
+  APP_ENV: 'dev',
+  JWT_SECRET: 'x'.repeat(32),
+  WAIT_DISCONNECT_GRACE_MS: String(GRACE_MS),
+  KEYWORDS_DIR: KEYWORDS_FIXTURE_DIR,
+});
 describe('WebSocket rooms', () => {
   let app: FastifyInstance;
   let url: string;
@@ -139,7 +79,7 @@ describe('WebSocket rooms', () => {
       locale: 'KO',
       isQuickStart: false,
       hostId: a.userId,
-      option: { minPlayers: 3, maxPlayers: 10 },
+      option: { minPlayers: 3, maxPlayers: 10, rounds: 2, strokesPerTurn: 1 },
       phase: { type: 'WAIT' },
       players: [{ id: a.userId, nickname: '아보카도', color: 'RED', isConnected: true }],
     });
@@ -169,7 +109,8 @@ describe('WebSocket rooms', () => {
     );
     expect((await a.client.request('CREATE_ROOM', { nickname: 'A', locale: 'ko' })).data.code).toBe('INVALID_REQUEST');
     expect((await a.client.request('LEAVE_ROOM')).data).toEqual({ request: 'LEAVE_ROOM', code: 'NOT_IN_ROOM' });
-    expect((await a.client.request('START_GAME')).data).toEqual({ request: 'START_GAME', code: 'INVALID_REQUEST' });
+    expect((await a.client.request('START_GAME')).data).toEqual({ request: 'START_GAME', code: 'NOT_IN_ROOM' });
+    expect((await a.client.request('NO_SUCH_TYPE')).data).toEqual({ request: 'NO_SUCH_TYPE', code: 'INVALID_REQUEST' });
   });
 
   it('refuses a joiner once the room is full', async () => {

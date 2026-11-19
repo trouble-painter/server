@@ -3,8 +3,9 @@ import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { parseEnv } from '../../src/shared/infrastructure/config/env.js';
+import { KEYWORDS_FIXTURE_DIR } from '../support/game.js';
 
-const ENV = parseEnv({ APP_ENV: 'dev', JWT_SECRET: 'x'.repeat(32) });
+const ENV = parseEnv({ APP_ENV: 'dev', JWT_SECRET: 'x'.repeat(32), KEYWORDS_DIR: KEYWORDS_FIXTURE_DIR });
 
 describe('auth REST', () => {
   let app: FastifyInstance;

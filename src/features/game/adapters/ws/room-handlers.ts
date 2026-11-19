@@ -8,6 +8,7 @@ import type { CreateRoom } from '../../application/usecases/create-room.js';
 import type { DisconnectUser } from '../../application/usecases/disconnect-user.js';
 import type { JoinRoom } from '../../application/usecases/join-room.js';
 import type { LeaveRoom } from '../../application/usecases/leave-room.js';
+import type { Limits } from '../../domain/limits.js';
 import { toNickname, type Nickname } from '../../domain/nickname.js';
 import { helloMessage, idleMessage, roomMessage } from './room-presenter.js';
 
@@ -30,12 +31,12 @@ export function registerRoomHandlers(
   router.register(
     ClientMessageType.CreateRoom,
     z.object({ nickname: NicknameSchema, locale: LocaleSchema }),
-    (userId, { nickname, locale }) => roomMessage(deps.createRoom.execute(userId, nickname, locale)),
+    (userId, { nickname, locale }) => roomMessage(deps.createRoom.execute(userId, nickname, locale), userId),
   );
   router.register(
     ClientMessageType.JoinRoom,
     z.object({ roomId: z.string().max(ROOM_CODE_INPUT_MAX), nickname: NicknameSchema }),
-    (userId, { roomId, nickname }) => roomMessage(deps.joinRoom.execute(userId, roomId, nickname)),
+    (userId, { roomId, nickname }) => roomMessage(deps.joinRoom.execute(userId, roomId, nickname), userId),
   );
   router.register(ClientMessageType.LeaveRoom, z.object({}), (userId) => {
     deps.leaveRoom.execute(userId);
@@ -43,9 +44,15 @@ export function registerRoomHandlers(
   });
 }
 
-export function connectionHandlers(deps: { connectUser: ConnectUser; disconnectUser: DisconnectUser; clock: Clock }) {
+export function connectionHandlers(deps: {
+  connectUser: ConnectUser;
+  disconnectUser: DisconnectUser;
+  clock: Clock;
+  limits: Limits;
+}) {
   return {
-    onConnect: (userId: UserId): ServerMessage => helloMessage(deps.clock.now(), deps.connectUser.execute(userId)),
+    onConnect: (userId: UserId): ServerMessage =>
+      helloMessage(deps.clock.now(), deps.limits, deps.connectUser.execute(userId), userId),
     onDisconnect: (userId: UserId): void => deps.disconnectUser.execute(userId),
   };
 }

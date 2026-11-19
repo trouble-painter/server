@@ -3,23 +3,37 @@ import { registerAuthRoutes } from './features/auth/adapters/http/auth-routes.js
 import { ReissueToken, SignInAnonymous, TokenType } from './features/auth/application/index.js';
 import { JoseTokenService } from './features/auth/infrastructure/jose-token-service.js';
 import { registerPlayingRoomRoute } from './features/game/adapters/http/playing-room-route.js';
+import { registerGameHandlers } from './features/game/adapters/ws/game-handlers.js';
 import { connectionHandlers, registerRoomHandlers } from './features/game/adapters/ws/room-handlers.js';
 import { mapGameError } from './features/game/adapters/ws/wire.js';
 import { WsRoomEventPublisher } from './features/game/adapters/ws/ws-room-event-publisher.js';
 import { Membership } from './features/game/application/membership.js';
+import { PhaseTimer } from './features/game/application/phase-timer.js';
 import { CleanupRooms } from './features/game/application/usecases/cleanup-rooms.js';
 import { ConnectUser } from './features/game/application/usecases/connect-user.js';
 import { CreateRoom } from './features/game/application/usecases/create-room.js';
 import { DisconnectUser } from './features/game/application/usecases/disconnect-user.js';
+import { DrawStroke } from './features/game/application/usecases/draw-stroke.js';
+import { EndTurn } from './features/game/application/usecases/end-turn.js';
 import { GetPlayingRoom } from './features/game/application/usecases/get-playing-room.js';
 import { JoinRoom } from './features/game/application/usecases/join-room.js';
 import { LeaveRoom } from './features/game/application/usecases/leave-room.js';
+import { PlayAgain } from './features/game/application/usecases/play-again.js';
+import { React } from './features/game/application/usecases/react.js';
+import { StartGame } from './features/game/application/usecases/start-game.js';
+import { SubmitAnswer } from './features/game/application/usecases/submit-answer.js';
+import { TypeAnswer } from './features/game/application/usecases/type-answer.js';
+import { Vote } from './features/game/application/usecases/vote.js';
+import { PLAYER_COUNT, type GameOption } from './features/game/domain/game-option.js';
+import type { Limits } from './features/game/domain/limits.js';
+import { JsonKeywordRepository } from './features/game/infrastructure/keywords/json-keyword-repository.js';
 import { MemoryRoomRepository } from './features/game/infrastructure/memory/memory-room-repository.js';
 import { parseBearer } from './shared/adapters/http/bearer.js';
 import { WS_PATH } from './shared/adapters/ws/protocol.js';
 import { WsRouter } from './shared/adapters/ws/router.js';
 import type { Env } from './shared/infrastructure/config/env.js';
 import { RandomIdGenerator } from './shared/infrastructure/id/random-id-generator.js';
+import { CryptoRandom } from './shared/infrastructure/random/crypto-random.js';
 import { SystemClock } from './shared/infrastructure/time/system-clock.js';
 import { TimeoutScheduler } from './shared/infrastructure/time/timeout-scheduler.js';
 import { WsServer } from './shared/infrastructure/ws/ws-server.js';
@@ -30,6 +44,26 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
   const ids = new RandomIdGenerator();
   const clock = new SystemClock();
   const scheduler = new TimeoutScheduler();
+  const random = new CryptoRandom();
+  const keywords = JsonKeywordRepository.load(env.KEYWORDS_DIR);
+  const option: GameOption = {
+    ...PLAYER_COUNT,
+    readyMs: env.GAME_READY_MS,
+    introAnimationMs: env.GAME_INTRO_ANIMATION_MS,
+    roundAnimationMs: env.GAME_ROUND_ANIMATION_MS,
+    rounds: env.GAME_ROUNDS,
+    turnMs: env.GAME_TURN_MS,
+    strokesPerTurn: env.GAME_STROKES_PER_TURN,
+    voteMs: env.GAME_VOTE_MS,
+    answerMs: env.GAME_ANSWER_MS,
+    endMs: env.GAME_END_MS,
+  };
+  const limits: Limits = {
+    drawThrottleMs: env.DRAW_THROTTLE_MS,
+    reactionThrottleMs: env.REACTION_THROTTLE_MS,
+    maxStrokePoints: env.MAX_STROKE_POINTS,
+    maxAnswerLength: env.MAX_ANSWER_LENGTH,
+  };
 
   const tokens = new JoseTokenService(env.JWT_SECRET, env.ACCESS_TOKEN_TTL_SEC);
   registerAuthRoutes(http, {
@@ -52,12 +86,23 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
   );
   const publisher = new WsRoomEventPublisher(ws);
   const membership = new Membership(rooms, publisher, scheduler, clock);
+  const timer = new PhaseTimer(rooms, publisher, scheduler, clock);
 
   const router = new WsRouter(logger, mapGameError);
   registerRoomHandlers(router, {
-    createRoom: new CreateRoom(rooms, membership, ids),
+    createRoom: new CreateRoom(rooms, membership, ids, option),
     joinRoom: new JoinRoom(rooms, membership, publisher),
-    leaveRoom: new LeaveRoom(rooms, membership),
+    leaveRoom: new LeaveRoom(rooms, membership, publisher, clock),
+  });
+  registerGameHandlers(router, limits, {
+    startGame: new StartGame(rooms, publisher, timer, keywords, random, clock),
+    drawStroke: new DrawStroke(rooms, publisher, clock),
+    endTurn: new EndTurn(rooms, publisher, timer, clock),
+    react: new React(rooms, publisher, clock, env.REACTION_THROTTLE_MS),
+    vote: new Vote(rooms, publisher, timer, clock),
+    typeAnswer: new TypeAnswer(rooms, publisher),
+    submitAnswer: new SubmitAnswer(rooms, publisher, timer, clock),
+    playAgain: new PlayAgain(rooms, publisher, timer, clock),
   });
   ws.listen(http.server, {
     authenticate: async (authorization) => {
@@ -76,6 +121,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
         env.WAIT_DISCONNECT_GRACE_MS,
       ),
       clock,
+      limits,
     }),
   });
 

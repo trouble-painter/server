@@ -2,7 +2,7 @@ import type { IdGenerator } from '../../../../shared/application/ports/id-genera
 import type { Locale } from '../../../../shared/domain/locale.js';
 import type { RoomCode } from '../../../../shared/domain/room-code.js';
 import type { UserId } from '../../../../shared/domain/user-id.js';
-import { DEFAULT_GAME_OPTION } from '../../domain/game-option.js';
+import type { GameOption } from '../../domain/game-option.js';
 import type { Nickname } from '../../domain/nickname.js';
 import { Room } from '../../domain/room.js';
 import type { Membership } from '../membership.js';
@@ -13,6 +13,7 @@ export class CreateRoom {
     private readonly rooms: RoomRepository,
     private readonly membership: Membership,
     private readonly ids: IdGenerator,
+    private readonly option: GameOption,
   ) {}
 
   execute(userId: UserId, nickname: Nickname, locale: Locale): Room {
@@ -21,7 +22,7 @@ export class CreateRoom {
       id: this.unusedCode(),
       locale,
       isQuickStart: false,
-      option: DEFAULT_GAME_OPTION,
+      option: this.option,
       hostId: userId,
       hostNickname: nickname,
     });

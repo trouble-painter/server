@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { GameError, GameErrorCode } from '../../../../src/features/game/domain/game-error.js';
-import { DEFAULT_GAME_OPTION } from '../../../../src/features/game/domain/game-option.js';
 import type { Nickname } from '../../../../src/features/game/domain/nickname.js';
 import { PLAYER_COLORS, PlayerColor } from '../../../../src/features/game/domain/player-color.js';
 import { Room } from '../../../../src/features/game/domain/room.js';
 import { Locale } from '../../../../src/shared/domain/locale.js';
 import type { RoomCode } from '../../../../src/shared/domain/room-code.js';
 import type { UserId } from '../../../../src/shared/domain/user-id.js';
+import { TEST_OPTION } from '../../../support/game.js';
 
 const NICK = 'nick' as Nickname;
 const uid = (n: number) => n as UserId;
@@ -16,7 +16,7 @@ function newRoom(): Room {
     id: 'K7Q2ZP' as RoomCode,
     locale: Locale.Ko,
     isQuickStart: false,
-    option: DEFAULT_GAME_OPTION,
+    option: TEST_OPTION,
     hostId: uid(1),
     hostNickname: NICK,
   });
@@ -54,10 +54,10 @@ describe('Room', () => {
 
   it('refuses a joiner beyond maxPlayers', () => {
     const room = newRoom();
-    for (let i = 2; i <= DEFAULT_GAME_OPTION.maxPlayers; i++) {
+    for (let i = 2; i <= TEST_OPTION.maxPlayers; i++) {
       room.addPlayer(uid(i), NICK);
     }
-    expect(DEFAULT_GAME_OPTION.maxPlayers).toBe(PLAYER_COLORS.length);
+    expect(TEST_OPTION.maxPlayers).toBe(PLAYER_COLORS.length);
     expectGameError(() => room.addPlayer(uid(99), NICK), GameErrorCode.RoomFull);
   });
 

@@ -16,6 +16,7 @@ import { Locale } from '../../../../src/shared/domain/locale.js';
 import type { RoomCode } from '../../../../src/shared/domain/room-code.js';
 import type { UserId } from '../../../../src/shared/domain/user-id.js';
 import { FakeClock, FakeScheduler } from '../../../support/fakes.js';
+import { TEST_OPTION } from '../../../support/game.js';
 
 const NICK = 'nick' as Nickname;
 const GRACE_MS = 30_000;
@@ -63,9 +64,9 @@ describe('room use cases', () => {
     scheduler = new FakeScheduler();
     clock = new FakeClock();
     const membership = new Membership(rooms, publisher, scheduler, clock);
-    createRoom = new CreateRoom(rooms, membership, new QueuedIds(['AAAAAA', 'AAAAAA', 'BBBBBB', 'CCCCCC']));
+    createRoom = new CreateRoom(rooms, membership, new QueuedIds(['AAAAAA', 'AAAAAA', 'BBBBBB', 'CCCCCC']), TEST_OPTION);
     joinRoom = new JoinRoom(rooms, membership, publisher);
-    leaveRoom = new LeaveRoom(rooms, membership);
+    leaveRoom = new LeaveRoom(rooms, membership, publisher, clock);
     connectUser = new ConnectUser(rooms, publisher, scheduler, clock);
     disconnectUser = new DisconnectUser(rooms, membership, publisher, scheduler, clock, GRACE_MS);
     cleanupRooms = new CleanupRooms(rooms, scheduler, clock, TTL_MS);

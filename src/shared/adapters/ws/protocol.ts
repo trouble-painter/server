@@ -9,6 +9,14 @@ export enum ClientMessageType {
   CreateRoom = 'CREATE_ROOM',
   JoinRoom = 'JOIN_ROOM',
   LeaveRoom = 'LEAVE_ROOM',
+  StartGame = 'START_GAME',
+  DrawStroke = 'DRAW_STROKE',
+  EndTurn = 'END_TURN',
+  Reaction = 'REACTION',
+  Vote = 'VOTE',
+  TypeAnswer = 'TYPE_ANSWER',
+  SubmitAnswer = 'SUBMIT_ANSWER',
+  PlayAgain = 'PLAY_AGAIN',
 }
 
 export enum ServerMessageType {
@@ -17,6 +25,11 @@ export enum ServerMessageType {
   Players = 'PLAYERS',
   Idle = 'IDLE',
   Error = 'ERROR',
+  Turn = 'TURN',
+  Stroke = 'STROKE',
+  Reaction = 'REACTION',
+  Votes = 'VOTES',
+  AnswerTyping = 'ANSWER_TYPING',
 }
 
 export enum IdleReason {
@@ -30,6 +43,10 @@ export enum WireErrorCode {
   RoomInGame = 'ROOM_IN_GAME',
   AlreadyInGame = 'ALREADY_IN_GAME',
   NotInRoom = 'NOT_IN_ROOM',
+  NotHost = 'NOT_HOST',
+  NotEnoughPlayers = 'NOT_ENOUGH_PLAYERS',
+  InvalidPhase = 'INVALID_PHASE',
+  NotYourTurn = 'NOT_YOUR_TURN',
   Internal = 'INTERNAL',
 }
 
