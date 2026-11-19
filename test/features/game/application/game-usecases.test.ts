@@ -10,6 +10,7 @@ import { LeaveRoom } from '../../../../src/features/game/application/usecases/le
 import { PlayAgain } from '../../../../src/features/game/application/usecases/play-again.js';
 import { React } from '../../../../src/features/game/application/usecases/react.js';
 import { StartGame } from '../../../../src/features/game/application/usecases/start-game.js';
+import { StartQuickStartGame } from '../../../../src/features/game/application/usecases/start-quick-start-game.js';
 import { GameErrorCode } from '../../../../src/features/game/domain/game-error.js';
 import type { Nickname } from '../../../../src/features/game/domain/nickname.js';
 import { PhaseType } from '../../../../src/features/game/domain/phase.js';
@@ -21,7 +22,7 @@ import type { IdGenerator } from '../../../../src/shared/application/ports/id-ge
 import { Locale } from '../../../../src/shared/domain/locale.js';
 import type { RoomCode } from '../../../../src/shared/domain/room-code.js';
 import type { UserId } from '../../../../src/shared/domain/user-id.js';
-import { FakeClock, FakeScheduler } from '../../../support/fakes.js';
+import { FakeClock, FakeScheduler, RecordingQueue } from '../../../support/fakes.js';
 import { FakeRandom, FixedKeywords, TEST_OPTION } from '../../../support/game.js';
 
 const NICK = 'nick' as Nickname;
@@ -58,8 +59,8 @@ describe('game use cases', () => {
     clock = new FakeClock();
     membership = new Membership(rooms, publisher, scheduler, clock);
     timer = new PhaseTimer(rooms, publisher, scheduler, clock);
-    room = new CreateRoom(rooms, membership, ONE_CODE, TEST_OPTION).execute(A, NICK, Locale.Ko);
-    const join = new JoinRoom(rooms, membership, publisher);
+    room = new CreateRoom(rooms, membership, new RecordingQueue(), ONE_CODE, TEST_OPTION).execute(A, NICK, Locale.Ko);
+    const join = new JoinRoom(rooms, membership, new RecordingQueue(), publisher);
     join.execute(B, room.id, NICK);
     join.execute(C, room.id, NICK);
     publisher.events.length = 0;
@@ -182,4 +183,33 @@ describe('game use cases', () => {
     expect(rooms.get(room.id)).toBeNull();
     expect(scheduler.tasks.has(phaseTimerKey(room.id))).toBe(false);
   });
+
+  it('a quick-start game starts at once and closes its room after END', () => {
+    const quickStart = new StartQuickStartGame(rooms, publisher, timer, ids('QQQQQQ'), TEST_OPTION, new FixedKeywords(), new FakeRandom(), clock);
+    const [D, E, F] = [4, 5, 6] as UserId[] as [UserId, UserId, UserId];
+    quickStart.execute(Locale.En, [D, E, F].map((userId) => ({ userId, nickname: NICK })));
+    const quick = rooms.findByUser(E)!;
+    expect(quick).toMatchObject({ id: 'QQQQQQ', isQuickStart: true, hostId: D, locale: Locale.En });
+    expect(quick.phase.type).toBe(PhaseType.Ready);
+    expect(publisher.events).toEqual([RoomEventType.PhaseChanged]);
+
+    while (quick.phase.type !== PhaseType.End) {
+      scheduler.fire(phaseTimerKey(quick.id));
+    }
+    publisher.events.length = 0;
+    scheduler.fire(phaseTimerKey(quick.id));
+    expect(publisher.events).toEqual([RoomEventType.RoomClosed]);
+    expect(rooms.get(quick.id)).toBeNull();
+    expect(rooms.findByUser(D)).toBeNull();
+    expect(scheduler.tasks.has(phaseTimerKey(quick.id))).toBe(false);
+  });
 });
+
+function ids(code: string): IdGenerator {
+  return {
+    userId: () => {
+      throw new Error('unused');
+    },
+    roomCode: () => code as RoomCode,
+  };
+}

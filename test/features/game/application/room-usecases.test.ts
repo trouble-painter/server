@@ -15,7 +15,7 @@ import type { IdGenerator } from '../../../../src/shared/application/ports/id-ge
 import { Locale } from '../../../../src/shared/domain/locale.js';
 import type { RoomCode } from '../../../../src/shared/domain/room-code.js';
 import type { UserId } from '../../../../src/shared/domain/user-id.js';
-import { FakeClock, FakeScheduler } from '../../../support/fakes.js';
+import { FakeClock, FakeScheduler, RecordingQueue } from '../../../support/fakes.js';
 import { TEST_OPTION } from '../../../support/game.js';
 
 const NICK = 'nick' as Nickname;
@@ -57,6 +57,7 @@ describe('room use cases', () => {
   let connectUser: ConnectUser;
   let disconnectUser: DisconnectUser;
   let cleanupRooms: CleanupRooms;
+  let queue: RecordingQueue;
 
   beforeEach(() => {
     rooms = new MemoryRoomRepository();
@@ -64,8 +65,9 @@ describe('room use cases', () => {
     scheduler = new FakeScheduler();
     clock = new FakeClock();
     const membership = new Membership(rooms, publisher, scheduler, clock);
-    createRoom = new CreateRoom(rooms, membership, new QueuedIds(['AAAAAA', 'AAAAAA', 'BBBBBB', 'CCCCCC']), TEST_OPTION);
-    joinRoom = new JoinRoom(rooms, membership, publisher);
+    queue = new RecordingQueue();
+    createRoom = new CreateRoom(rooms, membership, queue, new QueuedIds(['AAAAAA', 'AAAAAA', 'BBBBBB', 'CCCCCC']), TEST_OPTION);
+    joinRoom = new JoinRoom(rooms, membership, queue, publisher);
     leaveRoom = new LeaveRoom(rooms, membership, publisher, clock);
     connectUser = new ConnectUser(rooms, publisher, scheduler, clock);
     disconnectUser = new DisconnectUser(rooms, membership, publisher, clock, GRACE_MS);
@@ -92,6 +94,12 @@ describe('room use cases', () => {
     const second = createRoom.execute(B, NICK, Locale.En);
     expect(first.players.map((p) => p.userId)).toEqual([A]);
     expect(rooms.findByUser(B)).toBe(second);
+  });
+
+  it('creating or joining a room takes the user out of the quick-start queue', () => {
+    const room = createRoom.execute(A, NICK, Locale.Ko);
+    joinRoom.execute(B, room.id, NICK);
+    expect(queue.released).toEqual([A, B]);
   });
 
   it('joining tells everyone else and is idempotent for a member', () => {

@@ -23,6 +23,7 @@ export interface Player {
 
 const PLAYERS_CHANGED: RoomEvent = { type: RoomEventType.PlayersChanged };
 const PHASE_CHANGED: RoomEvent = { type: RoomEventType.PhaseChanged };
+const ROOM_CLOSED: RoomEvent = { type: RoomEventType.RoomClosed };
 
 type PhaseOf<T extends PhaseType> = Extract<Phase, { type: T }>;
 
@@ -281,8 +282,8 @@ export class Room {
       case PhaseType.Answer:
         return this.#judgeAnswer(phase, phase.typing, now);
       case PhaseType.End:
-        // TODO(M5): a quick-start room is dissolved instead.
-        return this.#backToWait(now);
+        // A quick-start room is only for one game.
+        return this.isQuickStart ? [ROOM_CLOSED] : this.#backToWait(now);
     }
   }
 

@@ -4,6 +4,7 @@ import { GameError, GameErrorCode } from '../../domain/game-error.js';
 import type { Nickname } from '../../domain/nickname.js';
 import type { Room } from '../../domain/room.js';
 import type { Membership } from '../membership.js';
+import type { QueueMembership } from '../ports/queue-membership.js';
 import type { RoomEventPublisher } from '../ports/room-event-publisher.js';
 import type { RoomRepository } from '../ports/room-repository.js';
 
@@ -11,6 +12,7 @@ export class JoinRoom {
   constructor(
     private readonly rooms: RoomRepository,
     private readonly membership: Membership,
+    private readonly queue: QueueMembership,
     private readonly publisher: RoomEventPublisher,
   ) {}
 
@@ -27,6 +29,7 @@ export class JoinRoom {
     // Check before leaving the current room so a refused join keeps the user where they were.
     room.assertJoinable();
     this.membership.release(userId);
+    this.queue.release(userId);
     const events = room.addPlayer(userId, nickname);
     this.rooms.save(room);
     this.publisher.publish(room, events, userId);

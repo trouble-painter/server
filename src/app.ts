@@ -22,6 +22,7 @@ import { PlayAgain } from './features/game/application/usecases/play-again.js';
 import { React } from './features/game/application/usecases/react.js';
 import { RestoreRooms } from './features/game/application/usecases/restore-rooms.js';
 import { StartGame } from './features/game/application/usecases/start-game.js';
+import { StartQuickStartGame } from './features/game/application/usecases/start-quick-start-game.js';
 import { SubmitAnswer } from './features/game/application/usecases/submit-answer.js';
 import { TypeAnswer } from './features/game/application/usecases/type-answer.js';
 import { Vote } from './features/game/application/usecases/vote.js';
@@ -29,10 +30,18 @@ import { PLAYER_COUNT, type GameOption } from './features/game/domain/game-optio
 import type { Limits } from './features/game/domain/limits.js';
 import { JsonKeywordRepository } from './features/game/infrastructure/keywords/json-keyword-repository.js';
 import { SqliteRoomRepository } from './features/game/infrastructure/sqlite/sqlite-room-repository.js';
+import { registerMatchingHandlers } from './features/matching/adapters/ws/matching-handlers.js';
+import { WsMatchingPublisher } from './features/matching/adapters/ws/ws-matching-publisher.js';
+import { Matchmaking } from './features/matching/application/matchmaking.js';
+import type { PushNotifier } from './features/matching/application/ports/push-notifier.js';
+import { createMatchRule } from './features/matching/domain/match-queue.js';
+import { FcmPushNotifier, type PushText } from './features/matching/infrastructure/fcm-push-notifier.js';
+import { LogPushNotifier } from './features/matching/infrastructure/log-push-notifier.js';
 import { parseBearer } from './shared/adapters/http/bearer.js';
 import { WS_PATH } from './shared/adapters/ws/protocol.js';
 import { WsRouter } from './shared/adapters/ws/router.js';
-import type { Env } from './shared/infrastructure/config/env.js';
+import { Locale } from './shared/domain/locale.js';
+import { pushTextOf, type Env } from './shared/infrastructure/config/env.js';
 import { RandomIdGenerator } from './shared/infrastructure/id/random-id-generator.js';
 import { CryptoRandom } from './shared/infrastructure/random/crypto-random.js';
 import { SystemClock } from './shared/infrastructure/time/system-clock.js';
@@ -89,10 +98,24 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
   const membership = new Membership(rooms, publisher, scheduler, clock);
   const timer = new PhaseTimer(rooms, publisher, scheduler, clock);
 
+  const notifier = createPushNotifier(env, logger);
+  const startQuickStartGame = new StartQuickStartGame(rooms, publisher, timer, ids, option, keywords, random, clock);
+  const matchmaking = new Matchmaking(
+    createMatchRule({ min: env.MATCH_MIN, target: env.MATCH_TARGET, waitMs: env.MATCH_WAIT_MS }, PLAYER_COUNT),
+    { waitMs: env.PUSH_WAIT_MS, cooldownMs: env.PUSH_COOLDOWN_MS },
+    env.MATCH_DISCONNECT_GRACE_MS,
+    membership,
+    { start: (locale, players) => startQuickStartGame.execute(locale, players) },
+    new WsMatchingPublisher(ws),
+    notifier,
+    scheduler,
+    clock,
+  );
+
   const router = new WsRouter(logger, mapGameError);
   registerRoomHandlers(router, {
-    createRoom: new CreateRoom(rooms, membership, ids, option),
-    joinRoom: new JoinRoom(rooms, membership, publisher),
+    createRoom: new CreateRoom(rooms, membership, matchmaking, ids, option),
+    joinRoom: new JoinRoom(rooms, membership, matchmaking, publisher),
     leaveRoom: new LeaveRoom(rooms, membership, publisher, clock),
   });
   registerGameHandlers(router, limits, {
@@ -105,6 +128,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     submitAnswer: new SubmitAnswer(rooms, publisher, timer, clock),
     playAgain: new PlayAgain(rooms, publisher, timer, clock),
   });
+  registerMatchingHandlers(router, { matchmaking });
   ws.listen(http.server, {
     authenticate: async (authorization) => {
       const token = parseBearer(authorization);
@@ -120,6 +144,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
         clock,
         env.WAIT_DISCONNECT_GRACE_MS,
       ),
+      queue: matchmaking,
       clock,
       limits,
     }),
@@ -135,7 +160,18 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     ws.close();
     scheduler.cancelAll();
     rooms.close();
+    if (notifier instanceof FcmPushNotifier) {
+      await notifier.close();
+    }
   });
 
   return http;
+}
+
+function createPushNotifier(env: Env, logger: FastifyBaseLogger): PushNotifier {
+  if (!env.PUSH_ENABLED) {
+    return new LogPushNotifier(logger);
+  }
+  const texts = Object.fromEntries(Object.values(Locale).map((locale) => [locale, pushTextOf(env, locale)]));
+  return FcmPushNotifier.create(env.FCM_CREDENTIALS_PATH, texts as Record<Locale, PushText>, logger);
 }

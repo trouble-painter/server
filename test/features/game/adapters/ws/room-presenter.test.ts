@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eventMessage, roomMessage } from '../../../../../src/features/game/adapters/ws/room-presenter.js';
+import { eventMessage, helloMessage, roomMessage } from '../../../../../src/features/game/adapters/ws/room-presenter.js';
 import type { Nickname } from '../../../../../src/features/game/domain/nickname.js';
 import { Reaction } from '../../../../../src/features/game/domain/reaction.js';
 import { RoomEventType } from '../../../../../src/features/game/domain/room-event.js';
@@ -7,7 +7,7 @@ import { Room } from '../../../../../src/features/game/domain/room.js';
 import { Locale } from '../../../../../src/shared/domain/locale.js';
 import type { RoomCode } from '../../../../../src/shared/domain/room-code.js';
 import type { UserId } from '../../../../../src/shared/domain/user-id.js';
-import { TEST_OPTION } from '../../../../support/game.js';
+import { TEST_LIMITS, TEST_OPTION } from '../../../../support/game.js';
 
 const [A, B, C] = [1, 2, 3] as UserId[] as [UserId, UserId, UserId];
 const NICK = 'nick' as Nickname;
@@ -91,5 +91,19 @@ describe('room presenter', () => {
     expect(eventMessage(room, typed, A)).toEqual({ type: 'ANSWER_TYPING', data: { answer: '도' } });
     const votes = { type: RoomEventType.VotesChanged, votes: new Map([[A, C]]) } as const;
     expect(eventMessage(room, votes, A)).toEqual({ type: 'VOTES', data: { votes: { '1': 3 } } });
+  });
+
+  it('closes a room with IDLE ROOM_CLOSED', () => {
+    expect(eventMessage(startedRoom(), { type: RoomEventType.RoomClosed }, A)).toEqual({
+      type: 'IDLE',
+      data: { reason: 'ROOM_CLOSED' },
+    });
+  });
+
+  it('HELLO carries the queue status of a queued user', () => {
+    const hello = helloMessage(7, TEST_LIMITS, null, { locale: Locale.En, waitingCount: 2 }, A).data as any;
+    expect(hello.room).toBeNull();
+    expect(hello.matching).toEqual({ locale: 'EN', waitingCount: 2 });
+    expect((helloMessage(7, TEST_LIMITS, null, null, A).data as any).matching).toBeNull();
   });
 });

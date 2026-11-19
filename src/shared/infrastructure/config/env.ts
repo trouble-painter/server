@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { z } from 'zod';
+import { Locale } from '../../domain/locale.js';
 
 export enum AppEnv {
   Dev = 'dev',
@@ -11,6 +12,21 @@ const AppEnvSchema = z.enum(AppEnv);
 /** Every setting is required: values live only in `.env/<APP_ENV>/server.env`, never as code defaults. */
 const positiveInt = z.coerce.number().int().positive();
 const nonNegativeInt = z.coerce.number().int().min(0);
+const flag = z.enum(['true', 'false']).transform((value) => value === 'true');
+
+type LocaleKey = Uppercase<`${Locale}`>;
+type PushTextKey = `PUSH_TITLE_${LocaleKey}` | `PUSH_BODY_${LocaleKey}`;
+
+/** `PUSH_TITLE_<LOCALE>` and `PUSH_BODY_<LOCALE>` for every locale, so a new locale cannot go without text. */
+const PushTextShape = Object.fromEntries(
+  Object.values(Locale).flatMap((locale) => {
+    const key = locale.toUpperCase();
+    return [
+      [`PUSH_TITLE_${key}`, z.string().min(1)],
+      [`PUSH_BODY_${key}`, z.string().min(1)],
+    ];
+  }),
+) as Record<PushTextKey, z.ZodString>;
 
 const EnvSchema = z.object({
   APP_ENV: AppEnvSchema,
@@ -42,9 +58,25 @@ const EnvSchema = z.object({
   /** `:memory:` keeps nothing. */
   SQLITE_PATH: z.string().min(1),
   RESTORE_GRACE_MS: positiveInt,
+  MATCH_MIN: positiveInt,
+  MATCH_TARGET: positiveInt,
+  MATCH_WAIT_MS: positiveInt,
+  MATCH_DISCONNECT_GRACE_MS: positiveInt,
+  /** false logs pushes instead of sending them; the key path is then not read. */
+  PUSH_ENABLED: flag,
+  FCM_CREDENTIALS_PATH: z.string().min(1),
+  PUSH_WAIT_MS: positiveInt,
+  PUSH_COOLDOWN_MS: positiveInt,
+  ...PushTextShape,
 });
 
 export type Env = z.infer<typeof EnvSchema>;
+
+/** The push title and body for `locale`. */
+export function pushTextOf(env: Env, locale: Locale): { title: string; body: string } {
+  const key = locale.toUpperCase() as LocaleKey;
+  return { title: env[`PUSH_TITLE_${key}`], body: env[`PUSH_BODY_${key}`] };
+}
 
 export function envFilePath(appEnv: AppEnv): string {
   return `.env/${appEnv}/server.env`;

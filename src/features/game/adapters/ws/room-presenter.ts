@@ -1,5 +1,7 @@
 import { IdleReason, localeToWire, ServerMessageType, type ServerMessage } from '../../../../shared/adapters/ws/protocol.js';
 import type { UserId } from '../../../../shared/domain/user-id.js';
+import { matchingView } from '../../../matching/adapters/ws/matching-presenter.js';
+import type { MatchingStatus } from '../../../matching/domain/match-queue.js';
 import type { GameOption } from '../../domain/game-option.js';
 import type { Limits } from '../../domain/limits.js';
 import { PhaseType, type Game, type Phase, type Result, type Sketch, type Stroke, type Turn } from '../../domain/phase.js';
@@ -147,11 +149,21 @@ function resultView(result: Result, keyword: string) {
   };
 }
 
-export function helloMessage(serverTime: number, limits: Limits, room: Room | null, viewer: UserId): ServerMessage {
+export function helloMessage(
+  serverTime: number,
+  limits: Limits,
+  room: Room | null,
+  matching: MatchingStatus | null,
+  viewer: UserId,
+): ServerMessage {
   return {
     type: ServerMessageType.Hello,
-    // TODO(M5): fill matching.
-    data: { serverTime, limits: limitsView(limits), room: room === null ? null : roomView(room, viewer), matching: null },
+    data: {
+      serverTime,
+      limits: limitsView(limits),
+      room: room === null ? null : roomView(room, viewer),
+      matching: matching === null ? null : matchingView(matching),
+    },
   };
 }
 
@@ -194,5 +206,7 @@ export function eventMessage(room: Room, event: RoomEvent, viewer: UserId): Serv
       return { type: ServerMessageType.Votes, data: { votes: votesView(event.votes) } };
     case RoomEventType.AnswerTyped:
       return viewer === event.mafiaId ? null : { type: ServerMessageType.AnswerTyping, data: { answer: event.answer } };
+    case RoomEventType.RoomClosed:
+      return idleMessage(IdleReason.RoomClosed);
   }
 }

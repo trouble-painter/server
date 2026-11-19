@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { AppEnv, envFilePath, parseEnv } from '../../../../src/shared/infrastructure/config/env.js';
+import { Locale } from '../../../../src/shared/domain/locale.js';
+import { AppEnv, envFilePath, parseEnv, pushTextOf } from '../../../../src/shared/infrastructure/config/env.js';
 import { TEST_ENV_SOURCE } from '../../../support/env.js';
 
 const VALID = TEST_ENV_SOURCE;
@@ -39,6 +40,18 @@ describe('parseEnv', () => {
     expect(parseEnv({ ...VALID, ACCESS_TOKEN_TTL_SEC: '60' }).ACCESS_TOKEN_TTL_SEC).toBe(60);
     expect(() => parseEnv({ ...VALID, ACCESS_TOKEN_TTL_SEC: '0' })).toThrow(/ACCESS_TOKEN_TTL_SEC/);
     expect(parseEnv({ ...VALID, GAME_INTRO_ANIMATION_MS: '0' }).GAME_INTRO_ANIMATION_MS).toBe(0);
+  });
+
+  it('parses PUSH_ENABLED as a strict flag', () => {
+    expect(parseEnv({ ...VALID, PUSH_ENABLED: 'true' }).PUSH_ENABLED).toBe(true);
+    expect(parseEnv({ ...VALID, PUSH_ENABLED: 'false' }).PUSH_ENABLED).toBe(false);
+    expect(() => parseEnv({ ...VALID, PUSH_ENABLED: 'yes' })).toThrow(/PUSH_ENABLED/);
+  });
+
+  it('reads the push text of each locale', () => {
+    const env = parseEnv(VALID);
+    expect(pushTextOf(env, Locale.Ko)).toEqual({ title: VALID.PUSH_TITLE_KO, body: VALID.PUSH_BODY_KO });
+    expect(pushTextOf(env, Locale.En)).toEqual({ title: VALID.PUSH_TITLE_EN, body: VALID.PUSH_BODY_EN });
   });
 });
 

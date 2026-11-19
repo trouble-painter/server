@@ -30,6 +30,18 @@ export const TEST_ENV_SOURCE: Readonly<Record<string, string>> = {
   KEYWORDS_DIR: KEYWORDS_FIXTURE_DIR,
   SQLITE_PATH: ':memory:',
   RESTORE_GRACE_MS: '10000',
+  MATCH_MIN: '3',
+  MATCH_TARGET: '6',
+  MATCH_WAIT_MS: '10000',
+  MATCH_DISCONNECT_GRACE_MS: '10000',
+  PUSH_ENABLED: 'false',
+  FCM_CREDENTIALS_PATH: 'unused-when-push-is-disabled.json',
+  PUSH_WAIT_MS: '5000',
+  PUSH_COOLDOWN_MS: '300000',
+  PUSH_TITLE_KO: '제목',
+  PUSH_BODY_KO: '{nickname}님이 기다려요.',
+  PUSH_TITLE_EN: 'Title',
+  PUSH_BODY_EN: '{nickname} is waiting.',
 };
 
 export function testEnv(overrides: Record<string, string> = {}): Env {

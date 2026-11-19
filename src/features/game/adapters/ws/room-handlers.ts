@@ -3,6 +3,7 @@ import { ClientMessageType, IdleReason, LocaleSchema, type ServerMessage } from 
 import type { WsRouter } from '../../../../shared/adapters/ws/router.js';
 import type { Clock } from '../../../../shared/application/ports/clock.js';
 import type { UserId } from '../../../../shared/domain/user-id.js';
+import type { QueueMembership } from '../../application/ports/queue-membership.js';
 import type { ConnectUser } from '../../application/usecases/connect-user.js';
 import type { CreateRoom } from '../../application/usecases/create-room.js';
 import type { DisconnectUser } from '../../application/usecases/disconnect-user.js';
@@ -12,7 +13,7 @@ import type { Limits } from '../../domain/limits.js';
 import { toNickname, type Nickname } from '../../domain/nickname.js';
 import { helloMessage, idleMessage, roomMessage } from './room-presenter.js';
 
-const NicknameSchema = z.string().transform((value, ctx): Nickname => {
+export const NicknameSchema = z.string().transform((value, ctx): Nickname => {
   const nickname = toNickname(value);
   if (nickname === null) {
     ctx.addIssue({ code: 'custom', message: 'invalid nickname' });
@@ -44,15 +45,23 @@ export function registerRoomHandlers(
   });
 }
 
+/** A user is in a room or a queue, never both, so HELLO carries whichever applies. */
 export function connectionHandlers(deps: {
   connectUser: ConnectUser;
   disconnectUser: DisconnectUser;
+  queue: QueueMembership;
   clock: Clock;
   limits: Limits;
 }) {
   return {
-    onConnect: (userId: UserId): ServerMessage =>
-      helloMessage(deps.clock.now(), deps.limits, deps.connectUser.execute(userId), userId),
-    onDisconnect: (userId: UserId): void => deps.disconnectUser.execute(userId),
+    onConnect: (userId: UserId): ServerMessage => {
+      const room = deps.connectUser.execute(userId);
+      const matching = deps.queue.connect(userId);
+      return helloMessage(deps.clock.now(), deps.limits, room, matching, userId);
+    },
+    onDisconnect: (userId: UserId): void => {
+      deps.disconnectUser.execute(userId);
+      deps.queue.disconnect(userId);
+    },
   };
 }
