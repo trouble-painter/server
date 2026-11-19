@@ -131,7 +131,7 @@ describe('WebSocket game', () => {
     const [votes] = await expectNext(players, 'VOTES');
     expect(Object.keys(votes!.data.votes)).toHaveLength(3);
     const [answer] = await expectNext(players, 'ROOM');
-    expect(answer!.data.room.phase).toMatchObject({ type: 'ANSWER', typing: '' });
+    expect(answer!.data.room.phase).toMatchObject({ type: 'ANSWER', accusedId: mafia.userId, typing: '' });
 
     mafia.client.send('TYPE_ANSWER', { answer: '모름' });
     for (const message of await expectNext(citizens, 'ANSWER_TYPING')) {

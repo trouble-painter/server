@@ -69,6 +69,17 @@ describe('room presenter', () => {
     });
   });
 
+  it('ANSWER names the accused, who is the mafia', () => {
+    const room = startedRoom();
+    while (room.phase.type !== 'vote') {
+      room.expire(room.version, 0);
+    }
+    room.vote(A, C, 0);
+    room.vote(B, C, 0);
+    room.vote(C, A, 0);
+    expect((roomMessage(room, A).data as any).room.phase).toMatchObject({ type: 'ANSWER', accusedId: 3, typing: '' });
+  });
+
   it('does not echo a stroke, reaction or answer back to its sender', () => {
     const room = startedRoom();
     const stroke = {

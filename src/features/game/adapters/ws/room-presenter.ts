@@ -88,6 +88,8 @@ function phaseView(phase: Phase, viewer: UserId) {
         type,
         game: gameView(phase.game, viewer),
         sketches: phase.sketches.map(sketchView),
+        // ANSWER only follows a vote that caught the mafia, so the accused is the mafia.
+        accusedId: phase.game.mafiaId,
         typing: phase.typing,
         deadline: phase.deadline,
       };
