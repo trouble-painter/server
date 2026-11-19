@@ -10,6 +10,7 @@ import type { React } from '../../application/usecases/react.js';
 import type { StartGame } from '../../application/usecases/start-game.js';
 import type { SubmitAnswer } from '../../application/usecases/submit-answer.js';
 import type { TypeAnswer } from '../../application/usecases/type-answer.js';
+import type { UpdateRule } from '../../application/usecases/update-rule.js';
 import type { Vote } from '../../application/usecases/vote.js';
 import type { Limits } from '../../domain/limits.js';
 import { ReactionSchema } from './wire.js';
@@ -26,6 +27,10 @@ const UserIdSchema = z.number().transform((value, ctx): UserId => {
 /** FCM tokens are about 160 characters; this only bounds what is kept in memory. */
 const PUSH_TOKEN_MAX_LENGTH = 4096;
 
+/** Generous bounds only; the room checks the ids against the keyword files. */
+const CATEGORY_ID_MAX_LENGTH = 64;
+const CATEGORY_IDS_MAX = 100;
+
 const CanvasSchema = z.object({ w: z.number().positive(), h: z.number().positive() });
 
 function strokeSchema(maxPoints: number) {
@@ -40,6 +45,7 @@ export function registerGameHandlers(
   router: WsRouter,
   limits: Limits,
   deps: {
+    updateRule: UpdateRule;
     startGame: StartGame;
     drawStroke: DrawStroke;
     clearSketch: ClearSketch;
@@ -57,6 +63,17 @@ export function registerGameHandlers(
     deps.gameStartPush.register(userId, token);
     return null;
   });
+  router.register(
+    ClientMessageType.UpdateRule,
+    z.object({
+      strokesPerTurn: z.number().int().nullable(),
+      categoryIds: z.array(z.string().max(CATEGORY_ID_MAX_LENGTH)).max(CATEGORY_IDS_MAX),
+    }),
+    (userId, rule) => {
+      deps.updateRule.execute(userId, rule);
+      return null;
+    },
+  );
   router.register(ClientMessageType.StartGame, z.object({}), (userId) => {
     deps.startGame.execute(userId);
     return null;

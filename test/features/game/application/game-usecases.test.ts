@@ -10,6 +10,7 @@ import { JoinRoom } from '../../../../src/features/game/application/usecases/joi
 import { LeaveRoom } from '../../../../src/features/game/application/usecases/leave-room.js';
 import { React } from '../../../../src/features/game/application/usecases/react.js';
 import { StartGame } from '../../../../src/features/game/application/usecases/start-game.js';
+import { UpdateRule } from '../../../../src/features/game/application/usecases/update-rule.js';
 import { StartQuickStartGame } from '../../../../src/features/game/application/usecases/start-quick-start-game.js';
 import { GameErrorCode } from '../../../../src/features/game/domain/game-error.js';
 import type { Nickname } from '../../../../src/features/game/domain/nickname.js';
@@ -98,6 +99,20 @@ describe('game use cases', () => {
     });
     expect(publisher.events).toEqual([RoomEventType.PhaseChanged]);
     expect(scheduler.tasks.get(phaseTimerKey(room.id))?.delayMs).toBe(TEST_OPTION.readyMs);
+  });
+
+  it('draws the category only from those the rule names, and tells everyone about a new rule', () => {
+    const keywords = new FixedKeywords([
+      { id: 'animal', category: '동물', keywords: [{ word: '고양이', synonyms: [] }] },
+      { id: 'food', category: '음식', keywords: [{ word: '피자', synonyms: [] }] },
+    ]);
+    new UpdateRule(rooms, publisher, keywords).execute(A, { strokesPerTurn: 3, categoryIds: ['food'] });
+    expect(room.rule).toEqual({ strokesPerTurn: 3, categoryIds: ['food'] });
+    expect(publisher.events).toEqual([RoomEventType.RuleChanged]);
+    expect(errorCode(() => new UpdateRule(rooms, publisher, keywords).execute(B, room.rule))).toBe(GameErrorCode.NotHost);
+
+    new StartGame(rooms, publisher, timer, keywords, new FakeRandom(), clock, push).execute(A);
+    expect(room.phase).toMatchObject({ game: { category: '음식' } });
   });
 
   it('refuses to start for a non-host or outside a room', () => {

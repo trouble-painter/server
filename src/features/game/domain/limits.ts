@@ -4,4 +4,5 @@ export interface Limits {
   readonly reactionThrottleMs: number;
   readonly maxStrokePoints: number;
   readonly maxAnswerLength: number;
+  readonly maxStrokesPerTurn: number;
 }

@@ -13,7 +13,7 @@ export const TEST_OPTION: GameOption = {
   roundAnimationMs: 2_000,
   rounds: 2,
   turnMs: 10_000,
-  strokesPerTurn: 2,
+  defaultStrokesPerTurn: 2,
   voteMs: 30_000,
   answerMs: 20_000,
 };
@@ -23,6 +23,7 @@ export const TEST_LIMITS: Limits = {
   reactionThrottleMs: 500,
   maxStrokePoints: 4,
   maxAnswerLength: 20,
+  maxStrokesPerTurn: 5,
 };
 
 /** Picks the element at the next queued index (0 once the queue runs out) and keeps the order on shuffle. */
@@ -39,7 +40,7 @@ export class FakeRandom implements Random {
 }
 
 export class FixedKeywords implements KeywordRepository {
-  constructor(private readonly list: readonly KeywordCategory[] = [{ category: '장소', keywords: [{ word: '도시', synonyms: [] }, { word: '바다', synonyms: [] }] }]) {}
+  constructor(private readonly list: readonly KeywordCategory[] = [{ id: 'place', category: '장소', keywords: [{ word: '도시', synonyms: [] }, { word: '바다', synonyms: [] }] }]) {}
 
   categories(): readonly KeywordCategory[] {
     return this.list;

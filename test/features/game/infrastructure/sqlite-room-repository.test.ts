@@ -104,6 +104,21 @@ describe('SqliteRoomRepository', () => {
     expect(warn).toHaveBeenCalledTimes(2);
   });
 
+  it('reads a room saved before rules existed with the default rule', () => {
+    const repository = open();
+    const room = waitingRoom('AAAAAA');
+    repository.close();
+    opened.splice(0);
+    const { rule: _rule, option: { defaultStrokesPerTurn, ...option }, ...rest } = room.toSnapshot();
+    const v1 = { ...rest, v: 1, option: { ...option, strokesPerTurn: defaultStrokesPerTurn } };
+    const db = new DatabaseSync(path);
+    db.prepare('INSERT INTO rooms VALUES (?, ?, ?)').run('AAAAAA', JSON.stringify(v1), clock.now());
+    db.close();
+
+    const restored = open().get(room.id)!;
+    expect(restored.toSnapshot()).toEqual(room.toSnapshot());
+  });
+
   it('keeps the room in memory and logs when a write fails', () => {
     const repository = open();
     const error = vi.spyOn(logger, 'error');

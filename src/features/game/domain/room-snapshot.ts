@@ -2,11 +2,12 @@ import type { Locale } from '../../../shared/domain/locale.js';
 import type { RoomCode } from '../../../shared/domain/room-code.js';
 import type { UserId } from '../../../shared/domain/user-id.js';
 import type { GameOption } from './game-option.js';
+import type { GameRule } from './game-rule.js';
 import type { Phase, PhaseType } from './phase.js';
 import type { Player } from './room.js';
 
 /** Bump when the shape changes so older saved rooms can be told apart. */
-export const ROOM_SNAPSHOT_VERSION = 1;
+export const ROOM_SNAPSHOT_VERSION = 2;
 
 type VotePhase = Extract<Phase, { type: PhaseType.Vote }>;
 
@@ -22,6 +23,7 @@ export interface RoomSnapshot {
   readonly locale: Locale;
   readonly isQuickStart: boolean;
   readonly option: GameOption;
+  readonly rule: GameRule;
   readonly hostId: UserId;
   readonly players: readonly Readonly<Player>[];
   readonly phase: PhaseSnapshot;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GameError, GameErrorCode } from '../../../../src/features/game/domain/game-error.js';
+import { MAX_STROKES_PER_TURN } from '../../../../src/features/game/domain/game-rule.js';
 import type { Nickname } from '../../../../src/features/game/domain/nickname.js';
 import { PhaseType, type Game, type Stroke } from '../../../../src/features/game/domain/phase.js';
 import { Reaction } from '../../../../src/features/game/domain/reaction.js';
@@ -276,5 +277,51 @@ describe('Room game flow', () => {
     room.addPlayer(A, NICK);
     expect(room.hostId).toBe(B);
     expect(room.players.map((p) => p.userId)).toEqual([B, A]);
+  });
+
+  it('only the host of a waiting custom room changes the rule, within range and with known categories', () => {
+    const room = roomOf(3);
+    const ids = ['animal', 'food'];
+    expect(room.rule).toEqual({ strokesPerTurn: TEST_OPTION.defaultStrokesPerTurn, categoryIds: [] });
+    expect(codeOf(() => room.updateRule(B, { strokesPerTurn: 3, categoryIds: [] }, ids))).toBe(GameErrorCode.NotHost);
+    for (const strokesPerTurn of [0, MAX_STROKES_PER_TURN + 1, 1.5]) {
+      expect(codeOf(() => room.updateRule(A, { strokesPerTurn, categoryIds: [] }, ids))).toBe(GameErrorCode.InvalidRequest);
+    }
+    for (const categoryIds of [['unknown'], ['food', 'food']]) {
+      expect(codeOf(() => room.updateRule(A, { strokesPerTurn: 1, categoryIds }, ids))).toBe(GameErrorCode.InvalidRequest);
+    }
+
+    expect(room.updateRule(A, { strokesPerTurn: null, categoryIds: ['food'] }, ids)).toEqual([{ type: RoomEventType.RuleChanged }]);
+    expect(room.rule).toEqual({ strokesPerTurn: null, categoryIds: ['food'] });
+    room.updateRule(A, { strokesPerTurn: 1, categoryIds: ['animal', 'food'] }, ids);
+    room.updateRule(A, { strokesPerTurn: 1, categoryIds: [] }, ids);
+    expect(room.rule).toEqual({ strokesPerTurn: 1, categoryIds: [] });
+
+    room.start(A, GAME, T0);
+    expect(codeOf(() => room.updateRule(A, { strokesPerTurn: 1, categoryIds: [] }, ids))).toBe(GameErrorCode.InvalidPhase);
+  });
+
+  it('a quick-start room keeps its rule', () => {
+    const room = Room.create({ id: 'K7Q2ZP' as RoomCode, locale: Locale.Ko, isQuickStart: true, option: TEST_OPTION, hostId: A, hostNickname: NICK });
+    expect(codeOf(() => room.updateRule(A, { strokesPerTurn: 3, categoryIds: [] }, ['animal']))).toBe(GameErrorCode.InvalidRequest);
+  });
+
+  it('the rule sets how many strokes a turn takes, or none at all', () => {
+    const limited = roomOf(3);
+    limited.updateRule(A, { strokesPerTurn: 1, categoryIds: [] }, ['animal']);
+    limited.start(A, GAME, T0);
+    limited.expire(limited.version, T0 + TEST_OPTION.readyMs);
+    const open = phase(limited, PhaseType.Drawing).turn.drawFrom;
+    limited.drawStroke(B, 0, STROKE, CANVAS, open);
+    expect(codeOf(() => limited.drawStroke(B, 1, STROKE, CANVAS, open))).toBe(GameErrorCode.InvalidRequest);
+
+    const unlimited = roomOf(3);
+    unlimited.updateRule(A, { strokesPerTurn: null, categoryIds: [] }, ['animal']);
+    unlimited.start(A, GAME, T0);
+    unlimited.expire(unlimited.version, T0 + TEST_OPTION.readyMs);
+    for (let index = 0; index < 20; index++) {
+      unlimited.drawStroke(B, index, STROKE, CANVAS, open);
+    }
+    expect(phase(unlimited, PhaseType.Drawing).current?.strokes).toHaveLength(20);
   });
 });

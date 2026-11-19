@@ -2,9 +2,11 @@ import { IdleReason, localeToWire, ServerMessageType, type ServerMessage } from 
 import type { UserId } from '../../../../shared/domain/user-id.js';
 import { matchingView } from '../../../matching/adapters/ws/matching-presenter.js';
 import type { MatchingStatus } from '../../../matching/domain/match-queue.js';
+import type { KeywordRepository } from '../../application/ports/keyword-repository.js';
 import type { GameOption } from '../../domain/game-option.js';
+import type { GameRule } from '../../domain/game-rule.js';
 import type { Limits } from '../../domain/limits.js';
-import { PhaseType, type Game, type Phase, type Result, type Sketch, type Stroke, type Turn } from '../../domain/phase.js';
+import { PhaseType, type Game, type Result, type Sketch, type Stroke, type Turn } from '../../domain/phase.js';
 import { Role } from '../../domain/role.js';
 import { RoomEventType, type RoomEvent } from '../../domain/room-event.js';
 import type { Player, Room } from '../../domain/room.js';
@@ -14,7 +16,7 @@ import { PHASE_WIRE, PLAYER_COLOR_WIRE, REACTION_WIRE, ROLE_WIRE } from './wire.
  * The single place a room becomes its wire form, for HELLO, ROOM and patches alike.
  * Built per viewer: only END reveals the mafia, and the mafia never gets the keyword in GameView.
  */
-function roomView(room: Room, viewer: UserId) {
+function roomView(room: Room, viewer: UserId, keywords: KeywordRepository) {
   return {
     id: room.id,
     locale: localeToWire(room.locale),
@@ -22,7 +24,8 @@ function roomView(room: Room, viewer: UserId) {
     hostId: room.hostId,
     players: room.players.map(playerView),
     option: optionView(room.option),
-    phase: phaseView(room.phase, viewer),
+    rule: ruleView(room.rule),
+    phase: phaseView(room, viewer, keywords),
   };
 }
 
@@ -44,9 +47,16 @@ function optionView(option: GameOption) {
     roundAnimationMs: option.roundAnimationMs,
     rounds: option.rounds,
     turnMs: option.turnMs,
-    strokesPerTurn: option.strokesPerTurn,
+    defaultStrokesPerTurn: option.defaultStrokesPerTurn,
     voteMs: option.voteMs,
     answerMs: option.answerMs,
+  };
+}
+
+function ruleView(rule: GameRule) {
+  return {
+    strokesPerTurn: rule.strokesPerTurn,
+    categoryIds: [...rule.categoryIds],
   };
 }
 
@@ -56,14 +66,17 @@ function limitsView(limits: Limits) {
     reactionThrottleMs: limits.reactionThrottleMs,
     maxStrokePoints: limits.maxStrokePoints,
     maxAnswerLength: limits.maxAnswerLength,
+    maxStrokesPerTurn: limits.maxStrokesPerTurn,
   };
 }
 
-function phaseView(phase: Phase, viewer: UserId) {
+/** WAIT carries the categories a host can pick from, named in the room's locale. */
+function phaseView(room: Room, viewer: UserId, keywords: KeywordRepository) {
+  const phase = room.phase;
   const type = PHASE_WIRE[phase.type];
   switch (phase.type) {
     case PhaseType.Wait:
-      return { type };
+      return { type, categories: keywords.categories(room.locale).map((c) => ({ id: c.id, name: c.category })) };
     case PhaseType.Ready:
       return { type, game: gameView(phase.game, viewer), deadline: phase.deadline };
     case PhaseType.Drawing:
@@ -155,20 +168,21 @@ export function helloMessage(
   room: Room | null,
   matching: MatchingStatus | null,
   viewer: UserId,
+  keywords: KeywordRepository,
 ): ServerMessage {
   return {
     type: ServerMessageType.Hello,
     data: {
       serverTime,
       limits: limitsView(limits),
-      room: room === null ? null : roomView(room, viewer),
+      room: room === null ? null : roomView(room, viewer, keywords),
       matching: matching === null ? null : matchingView(matching),
     },
   };
 }
 
-export function roomMessage(room: Room, viewer: UserId): ServerMessage {
-  return { type: ServerMessageType.Room, data: { room: roomView(room, viewer) } };
+export function roomMessage(room: Room, viewer: UserId, keywords: KeywordRepository): ServerMessage {
+  return { type: ServerMessageType.Room, data: { room: roomView(room, viewer, keywords) } };
 }
 
 export function playersMessage(room: Room): ServerMessage {
@@ -180,12 +194,13 @@ export function idleMessage(reason: IdleReason): ServerMessage {
 }
 
 /** What `viewer` is told about the event; null when it is not for them (their own stroke, clear, reaction or answer). */
-export function eventMessage(room: Room, event: RoomEvent, viewer: UserId): ServerMessage | null {
+export function eventMessage(room: Room, event: RoomEvent, viewer: UserId, keywords: KeywordRepository): ServerMessage | null {
   switch (event.type) {
     case RoomEventType.PlayersChanged:
       return playersMessage(room);
     case RoomEventType.PhaseChanged:
-      return roomMessage(room, viewer);
+    case RoomEventType.RuleChanged:
+      return roomMessage(room, viewer, keywords);
     case RoomEventType.TurnChanged:
       return {
         type: ServerMessageType.Turn,

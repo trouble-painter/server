@@ -4,7 +4,9 @@ export interface Keyword {
   readonly synonyms: readonly string[];
 }
 
+/** `id` is the same in every locale; `category` is the name shown in the room's locale. */
 export interface KeywordCategory {
+  readonly id: string;
   readonly category: string;
   readonly keywords: readonly Keyword[];
 }

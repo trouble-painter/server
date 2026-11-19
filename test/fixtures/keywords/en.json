@@ -1,4 +1,4 @@
 [
-  { "category": "Animals", "keywords": [{ "word": "Cat", "synonyms": ["Kitty"] }, { "word": "Dog", "synonyms": ["Puppy"] }] },
-  { "category": "Food", "keywords": [{ "word": "Pizza", "synonyms": [] }] }
+  { "id": "animal", "category": "Animals", "keywords": [{ "word": "Cat", "synonyms": ["Kitty"] }, { "word": "Dog", "synonyms": ["Puppy"] }] },
+  { "id": "food", "category": "Food", "keywords": [{ "word": "Pizza", "synonyms": [] }] }
 ]

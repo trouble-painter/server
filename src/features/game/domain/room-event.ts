@@ -5,6 +5,7 @@ import type { Reaction } from './reaction.js';
 export enum RoomEventType {
   PlayersChanged = 'playersChanged',
   PhaseChanged = 'phaseChanged',
+  RuleChanged = 'ruleChanged',
   TurnChanged = 'turnChanged',
   StrokeUpdated = 'strokeUpdated',
   SketchCleared = 'sketchCleared',
@@ -16,6 +17,7 @@ export enum RoomEventType {
 export type RoomEvent =
   | { readonly type: RoomEventType.PlayersChanged }
   | { readonly type: RoomEventType.PhaseChanged }
+  | { readonly type: RoomEventType.RuleChanged }
   /** `sketch` is the turn that just ended; null when its drawer drew nothing. */
   | { readonly type: RoomEventType.TurnChanged; readonly turn: Turn; readonly sketch: Sketch | null }
   | {

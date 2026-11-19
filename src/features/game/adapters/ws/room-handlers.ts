@@ -3,6 +3,7 @@ import { ClientMessageType, IdleReason, LocaleSchema, type ServerMessage } from 
 import type { WsRouter } from '../../../../shared/adapters/ws/router.js';
 import type { Clock } from '../../../../shared/application/ports/clock.js';
 import type { UserId } from '../../../../shared/domain/user-id.js';
+import type { KeywordRepository } from '../../application/ports/keyword-repository.js';
 import type { QueueMembership } from '../../application/ports/queue-membership.js';
 import type { ConnectUser } from '../../application/usecases/connect-user.js';
 import type { CreateRoom } from '../../application/usecases/create-room.js';
@@ -27,17 +28,17 @@ const ROOM_CODE_INPUT_MAX = 32;
 
 export function registerRoomHandlers(
   router: WsRouter,
-  deps: { createRoom: CreateRoom; joinRoom: JoinRoom; leaveRoom: LeaveRoom },
+  deps: { createRoom: CreateRoom; joinRoom: JoinRoom; leaveRoom: LeaveRoom; keywords: KeywordRepository },
 ): void {
   router.register(
     ClientMessageType.CreateRoom,
     z.object({ nickname: NicknameSchema, locale: LocaleSchema }),
-    (userId, { nickname, locale }) => roomMessage(deps.createRoom.execute(userId, nickname, locale), userId),
+    (userId, { nickname, locale }) => roomMessage(deps.createRoom.execute(userId, nickname, locale), userId, deps.keywords),
   );
   router.register(
     ClientMessageType.JoinRoom,
     z.object({ roomId: z.string().max(ROOM_CODE_INPUT_MAX), nickname: NicknameSchema }),
-    (userId, { roomId, nickname }) => roomMessage(deps.joinRoom.execute(userId, roomId, nickname), userId),
+    (userId, { roomId, nickname }) => roomMessage(deps.joinRoom.execute(userId, roomId, nickname), userId, deps.keywords),
   );
   router.register(ClientMessageType.LeaveRoom, z.object({}), (userId) => {
     deps.leaveRoom.execute(userId);
@@ -52,12 +53,13 @@ export function connectionHandlers(deps: {
   queue: QueueMembership;
   clock: Clock;
   limits: Limits;
+  keywords: KeywordRepository;
 }) {
   return {
     onConnect: (userId: UserId): ServerMessage => {
       const room = deps.connectUser.execute(userId);
       const matching = deps.queue.connect(userId);
-      return helloMessage(deps.clock.now(), deps.limits, room, matching, userId);
+      return helloMessage(deps.clock.now(), deps.limits, room, matching, userId, deps.keywords);
     },
     onDisconnect: (userId: UserId): void => {
       deps.disconnectUser.execute(userId);

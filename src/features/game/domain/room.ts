@@ -3,6 +3,7 @@ import type { RoomCode } from '../../../shared/domain/room-code.js';
 import type { UserId } from '../../../shared/domain/user-id.js';
 import { GameError, GameErrorCode } from './game-error.js';
 import type { GameOption } from './game-option.js';
+import { assertValidRule, defaultRule, type GameRule } from './game-rule.js';
 import { isCorrectGuess } from './keyword.js';
 import type { Nickname } from './nickname.js';
 import { PhaseType, type Canvas, type Game, type Phase, type Result, type Sketch, type Stroke } from './phase.js';
@@ -23,11 +24,13 @@ export interface Player {
 
 const PLAYERS_CHANGED: RoomEvent = { type: RoomEventType.PlayersChanged };
 const PHASE_CHANGED: RoomEvent = { type: RoomEventType.PhaseChanged };
+const RULE_CHANGED: RoomEvent = { type: RoomEventType.RuleChanged };
 
 type PhaseOf<T extends PhaseType> = Extract<Phase, { type: T }>;
 
 export class Room {
   #hostId: UserId;
+  #rule: GameRule;
   readonly #players: Player[] = [];
   #phase: Phase = { type: PhaseType.Wait };
   #emptySince: number | null = null;
@@ -39,8 +42,10 @@ export class Room {
     readonly isQuickStart: boolean,
     readonly option: GameOption,
     hostId: UserId,
+    rule: GameRule,
   ) {
     this.#hostId = hostId;
+    this.#rule = rule;
   }
 
   static create(params: {
@@ -51,13 +56,20 @@ export class Room {
     hostId: UserId;
     hostNickname: Nickname;
   }): Room {
-    const room = new Room(params.id, params.locale, params.isQuickStart, params.option, params.hostId);
+    const room = new Room(
+      params.id,
+      params.locale,
+      params.isQuickStart,
+      params.option,
+      params.hostId,
+      defaultRule(params.option.defaultStrokesPerTurn),
+    );
     room.addPlayer(params.hostId, params.hostNickname);
     return room;
   }
 
   static fromSnapshot(snapshot: RoomSnapshot): Room {
-    const room = new Room(snapshot.id, snapshot.locale, snapshot.isQuickStart, snapshot.option, snapshot.hostId);
+    const room = new Room(snapshot.id, snapshot.locale, snapshot.isQuickStart, snapshot.option, snapshot.hostId, snapshot.rule);
     room.#players.push(...snapshot.players.map((p) => ({ ...p })));
     const phase = snapshot.phase;
     room.#phase = phase.type === PhaseType.Vote ? { ...phase, votes: new Map(phase.votes) } : phase;
@@ -74,6 +86,7 @@ export class Room {
       locale: this.locale,
       isQuickStart: this.isQuickStart,
       option: this.option,
+      rule: this.#rule,
       hostId: this.#hostId,
       players: this.#players.map((p) => ({ ...p })),
       phase: phase.type === PhaseType.Vote ? { ...phase, votes: [...phase.votes] } : phase,
@@ -84,6 +97,10 @@ export class Room {
 
   get hostId(): UserId {
     return this.#hostId;
+  }
+
+  get rule(): GameRule {
+    return this.#rule;
   }
 
   /** In join order. */
@@ -193,6 +210,20 @@ export class Room {
     return [PLAYERS_CHANGED];
   }
 
+  /** Only the host of a waiting custom room; `allCategoryIds` are every category of the room's locale. */
+  updateRule(userId: UserId, rule: GameRule, allCategoryIds: readonly string[]): RoomEvent[] {
+    this.#phaseOf(PhaseType.Wait);
+    if (this.isQuickStart) {
+      throw new GameError(GameErrorCode.InvalidRequest);
+    }
+    if (userId !== this.#hostId) {
+      throw new GameError(GameErrorCode.NotHost);
+    }
+    assertValidRule(rule, allCategoryIds);
+    this.#rule = { strokesPerTurn: rule.strokesPerTurn, categoryIds: [...rule.categoryIds] };
+    return [RULE_CHANGED];
+  }
+
   /** Throws unless the user may start a game now; checked before the caller draws roles and keyword. */
   assertCanStart(userId: UserId): void {
     this.#phaseOf(PhaseType.Wait);
@@ -219,7 +250,8 @@ export class Room {
     }
     const strokes = phase.current?.strokes ?? [];
     const isReplace = index === strokes.length - 1;
-    if ((!isReplace && index !== strokes.length) || index >= this.option.strokesPerTurn) {
+    const maxStrokes = this.#rule.strokesPerTurn;
+    if ((!isReplace && index !== strokes.length) || (maxStrokes !== null && index >= maxStrokes)) {
       throw new GameError(GameErrorCode.InvalidRequest);
     }
     const next = isReplace ? strokes.with(index, stroke) : [...strokes, stroke];

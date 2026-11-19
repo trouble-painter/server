@@ -15,7 +15,8 @@ export interface GameOption {
   readonly roundAnimationMs: number;
   readonly rounds: number;
   readonly turnMs: number;
-  readonly strokesPerTurn: number;
+  /** What a new room's rule starts with and what a host resets it to. */
+  readonly defaultStrokesPerTurn: number;
   readonly voteMs: number;
   readonly answerMs: number;
 }

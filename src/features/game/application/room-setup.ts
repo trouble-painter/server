@@ -14,10 +14,14 @@ export function unusedRoomCode(rooms: RoomRepository, ids: IdGenerator): RoomCod
   return code;
 }
 
-/** One mafia, a random category, a random keyword in it, and a shuffled turn order. */
+/** One mafia, a random category among the rule's (all when it names none), a random keyword in it, and a shuffled turn order. */
 export function drawGame(room: Room, keywords: KeywordRepository, random: Random): Game {
   const playerIds = room.players.map((p) => p.userId);
-  const { category, keywords: candidates } = random.pick(keywords.categories(room.locale));
+  const all = keywords.categories(room.locale);
+  const chosen = new Set(room.rule.categoryIds);
+  const inPlay = all.filter((c) => chosen.has(c.id));
+  // None chosen, or the chosen ones dropped from the keyword files: draw from all of them.
+  const { category, keywords: candidates } = random.pick(inPlay.length > 0 ? inPlay : all);
   return {
     mafiaId: random.pick(playerIds),
     category,

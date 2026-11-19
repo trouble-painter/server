@@ -7,10 +7,11 @@ import { Room } from '../../../../../src/features/game/domain/room.js';
 import { Locale } from '../../../../../src/shared/domain/locale.js';
 import type { RoomCode } from '../../../../../src/shared/domain/room-code.js';
 import type { UserId } from '../../../../../src/shared/domain/user-id.js';
-import { TEST_LIMITS, TEST_OPTION } from '../../../../support/game.js';
+import { FixedKeywords, TEST_LIMITS, TEST_OPTION } from '../../../../support/game.js';
 
 const [A, B, C] = [1, 2, 3] as UserId[] as [UserId, UserId, UserId];
 const NICK = 'nick' as Nickname;
+const KEYWORDS = new FixedKeywords();
 
 function startedRoom(): Room {
   const room = Room.create({
@@ -30,8 +31,8 @@ function startedRoom(): Room {
 describe('room presenter', () => {
   it('hides the keyword from the mafia and the mafia from everyone', () => {
     const room = startedRoom();
-    const citizen = roomMessage(room, A).data as any;
-    const mafia = roomMessage(room, C).data as any;
+    const citizen = roomMessage(room, A, KEYWORDS).data as any;
+    const mafia = roomMessage(room, C, KEYWORDS).data as any;
     expect(citizen.room.phase).toEqual({
       type: 'READY',
       game: { role: 'CITIZEN', category: '장소', keyword: '도시', turnOrder: [2, 1, 3] },
@@ -47,7 +48,7 @@ describe('room presenter', () => {
       roundAnimationMs: 2_000,
       rounds: 2,
       turnMs: 10_000,
-      strokesPerTurn: 2,
+      defaultStrokesPerTurn: 2,
       voteMs: 30_000,
       answerMs: 20_000,
     });
@@ -62,7 +63,7 @@ describe('room presenter', () => {
     room.vote(B, A);
     room.vote(C, A);
     room.expire(room.version, room.deadline!);
-    expect((roomMessage(room, C).data as any).room.phase).toMatchObject({
+    expect((roomMessage(room, C, KEYWORDS).data as any).room.phase).toMatchObject({
       type: 'END',
       sketches: [],
       result: { mafiaId: 3, accusedId: 1, answer: '도시', mafiaGuess: null, winner: 'MAFIA' },
@@ -78,7 +79,7 @@ describe('room presenter', () => {
     room.vote(B, C);
     room.vote(C, A);
     room.expire(room.version, room.deadline!);
-    expect((roomMessage(room, A).data as any).room.phase).toMatchObject({ type: 'ANSWER', accusedId: 3, typing: '' });
+    expect((roomMessage(room, A, KEYWORDS).data as any).room.phase).toMatchObject({ type: 'ANSWER', accusedId: 3, typing: '' });
   });
 
   it('does not echo a stroke, clear, reaction or answer back to its sender', () => {
@@ -90,28 +91,28 @@ describe('room presenter', () => {
       stroke: { x: [1], y: [2], t: [0] },
       canvas: { w: 3, h: 4 },
     } as const;
-    expect(eventMessage(room, stroke, B)).toBeNull();
-    expect(eventMessage(room, stroke, A)).toEqual({
+    expect(eventMessage(room, stroke, B, KEYWORDS)).toBeNull();
+    expect(eventMessage(room, stroke, A, KEYWORDS)).toEqual({
       type: 'STROKE',
       data: { index: 0, stroke: { x: [1], y: [2], t: [0] }, canvas: { w: 3, h: 4 } },
     });
     const cleared = { type: RoomEventType.SketchCleared, drawerId: B } as const;
-    expect(eventMessage(room, cleared, B)).toBeNull();
-    expect(eventMessage(room, cleared, A)).toEqual({ type: 'SKETCH_CLEARED', data: {} });
+    expect(eventMessage(room, cleared, B, KEYWORDS)).toBeNull();
+    expect(eventMessage(room, cleared, A, KEYWORDS)).toEqual({ type: 'SKETCH_CLEARED', data: {} });
     const reaction = { type: RoomEventType.ReactionSent, userId: A, reaction: Reaction.Poop } as const;
-    expect(eventMessage(room, reaction, A)).toBeNull();
-    expect(eventMessage(room, reaction, B)).toEqual({ type: 'REACTION', data: { userId: 1, reaction: 'POOP' } });
+    expect(eventMessage(room, reaction, A, KEYWORDS)).toBeNull();
+    expect(eventMessage(room, reaction, B, KEYWORDS)).toEqual({ type: 'REACTION', data: { userId: 1, reaction: 'POOP' } });
     const typed = { type: RoomEventType.AnswerTyped, mafiaId: C, answer: '도' } as const;
-    expect(eventMessage(room, typed, C)).toBeNull();
-    expect(eventMessage(room, typed, A)).toEqual({ type: 'ANSWER_TYPING', data: { answer: '도' } });
+    expect(eventMessage(room, typed, C, KEYWORDS)).toBeNull();
+    expect(eventMessage(room, typed, A, KEYWORDS)).toEqual({ type: 'ANSWER_TYPING', data: { answer: '도' } });
     const votes = { type: RoomEventType.VotesChanged, votes: new Map([[A, C]]) } as const;
-    expect(eventMessage(room, votes, A)).toEqual({ type: 'VOTES', data: { votes: { '1': 3 } } });
+    expect(eventMessage(room, votes, A, KEYWORDS)).toEqual({ type: 'VOTES', data: { votes: { '1': 3 } } });
   });
 
   it('HELLO carries the queue status of a queued user', () => {
-    const hello = helloMessage(7, TEST_LIMITS, null, { locale: Locale.En, waitingCount: 2, startsAt: null, minCount: 3, waitMs: 10_000 }, A).data as any;
+    const hello = helloMessage(7, TEST_LIMITS, null, { locale: Locale.En, waitingCount: 2, startsAt: null, minCount: 3, waitMs: 10_000 }, A, KEYWORDS).data as any;
     expect(hello.room).toBeNull();
     expect(hello.matching).toEqual({ locale: 'EN', waitingCount: 2, startsAt: null, minCount: 3, waitMs: 10_000 });
-    expect((helloMessage(7, TEST_LIMITS, null, null, A).data as any).matching).toBeNull();
+    expect((helloMessage(7, TEST_LIMITS, null, null, A, KEYWORDS).data as any).matching).toBeNull();
   });
 });

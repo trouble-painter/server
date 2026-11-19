@@ -9,6 +9,7 @@ export enum ClientMessageType {
   CreateRoom = 'CREATE_ROOM',
   JoinRoom = 'JOIN_ROOM',
   LeaveRoom = 'LEAVE_ROOM',
+  UpdateRule = 'UPDATE_RULE',
   StartGame = 'START_GAME',
   DrawStroke = 'DRAW_STROKE',
   ClearSketch = 'CLEAR_SKETCH',

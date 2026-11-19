@@ -73,8 +73,15 @@ describe('WebSocket rooms', () => {
       locale: 'KO',
       isQuickStart: false,
       hostId: a.userId,
-      option: { minPlayers: 3, maxPlayers: 10, rounds: 2, strokesPerTurn: 1 },
-      phase: { type: 'WAIT' },
+      option: { minPlayers: 3, maxPlayers: 10, rounds: 2, defaultStrokesPerTurn: 1 },
+      rule: { strokesPerTurn: 1, categoryIds: [] },
+      phase: {
+        type: 'WAIT',
+        categories: [
+          { id: 'animal', name: '동물' },
+          { id: 'food', name: '음식' },
+        ],
+      },
       players: [{ id: a.userId, nickname: '아보카도', color: 'RED', isConnected: true }],
     });
     expect(room.id).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
@@ -90,6 +97,28 @@ describe('WebSocket rooms', () => {
 
     expect(await playingRoom(a.accessToken)).toBe(room.id);
     expect(await playingRoom(b.accessToken)).toBe(room.id);
+  });
+
+  it('the host changes the rule and everyone gets the room again', async () => {
+    const a = await user();
+    const room = (await a.client.request('CREATE_ROOM', { nickname: 'A', locale: 'KO' })).data.room;
+    const b = await user();
+    await b.client.request('JOIN_ROOM', { roomId: room.id, nickname: 'B' });
+    await a.client.next();
+
+    const rule = { strokesPerTurn: null, categoryIds: ['food'] };
+    a.client.send('UPDATE_RULE', rule);
+    for (const client of [a.client, b.client]) {
+      const message = await client.next();
+      expect(message.type).toBe('ROOM');
+      expect(message.data.room.rule).toEqual(rule);
+    }
+
+    expect(await b.client.request('UPDATE_RULE', rule)).toEqual({ type: 'ERROR', data: { request: 'UPDATE_RULE', code: 'NOT_HOST' } });
+    expect(await a.client.request('UPDATE_RULE', { strokesPerTurn: 1, categoryIds: ['unknown'] })).toEqual({
+      type: 'ERROR',
+      data: { request: 'UPDATE_RULE', code: 'INVALID_REQUEST' },
+    });
   });
 
   it('answers errors with the request type and a code', async () => {

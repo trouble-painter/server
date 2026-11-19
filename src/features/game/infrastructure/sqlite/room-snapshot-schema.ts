@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Locale } from '../../../../shared/domain/locale.js';
 import { toRoomCode } from '../../../../shared/domain/room-code.js';
 import { toUserId } from '../../../../shared/domain/user-id.js';
+import { defaultRule } from '../../domain/game-rule.js';
 import { toNickname } from '../../domain/nickname.js';
 import { PhaseType } from '../../domain/phase.js';
 import { PlayerColor } from '../../domain/player-color.js';
@@ -67,24 +68,22 @@ const phase = z.discriminatedUnion('type', [
 
 const count = z.number().int().min(0);
 
-/** Checks a saved room before it is trusted; the annotation keeps it in step with {@link RoomSnapshot}. */
-export const RoomSnapshotSchema: z.ZodType<RoomSnapshot> = z.object({
-  v: z.literal(ROOM_SNAPSHOT_VERSION),
+const option = {
+  minPlayers: count,
+  maxPlayers: count,
+  readyMs: count,
+  introAnimationMs: count,
+  roundAnimationMs: count,
+  rounds: count,
+  turnMs: count,
+  voteMs: count,
+  answerMs: count,
+};
+
+const rest = {
   id: branded(z.string(), toRoomCode),
   locale: z.enum(Locale),
   isQuickStart: z.boolean(),
-  option: z.object({
-    minPlayers: count,
-    maxPlayers: count,
-    readyMs: count,
-    introAnimationMs: count,
-    roundAnimationMs: count,
-    rounds: count,
-    turnMs: count,
-    strokesPerTurn: count,
-    voteMs: count,
-    answerMs: count,
-  }),
   hostId: userId,
   players: z.array(
     z.object({
@@ -97,4 +96,24 @@ export const RoomSnapshotSchema: z.ZodType<RoomSnapshot> = z.object({
   phase,
   emptySince: time.nullable(),
   version: count,
+};
+
+const RoomSnapshotV2Schema = z.object({
+  v: z.literal(ROOM_SNAPSHOT_VERSION),
+  option: z.object({ ...option, defaultStrokesPerTurn: count }),
+  rule: z.object({ strokesPerTurn: count.nullable(), categoryIds: z.array(z.string()) }),
+  ...rest,
 });
+
+/** Saved before rooms had a rule: every room played the configured stroke count over all categories. */
+const RoomSnapshotV1Schema = z
+  .object({ v: z.literal(1), option: z.object({ ...option, strokesPerTurn: count }), ...rest })
+  .transform(({ option: { strokesPerTurn, ...option }, ...snapshot }) => ({
+    ...snapshot,
+    v: ROOM_SNAPSHOT_VERSION as typeof ROOM_SNAPSHOT_VERSION,
+    option: { ...option, defaultStrokesPerTurn: strokesPerTurn },
+    rule: defaultRule(strokesPerTurn),
+  }));
+
+/** Checks a saved room before it is trusted; the annotation keeps it in step with {@link RoomSnapshot}. */
+export const RoomSnapshotSchema: z.ZodType<RoomSnapshot> = z.union([RoomSnapshotV2Schema, RoomSnapshotV1Schema]);

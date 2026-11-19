@@ -24,11 +24,13 @@ import { LeaveRoom } from './features/game/application/usecases/leave-room.js';
 import { React } from './features/game/application/usecases/react.js';
 import { RestoreRooms } from './features/game/application/usecases/restore-rooms.js';
 import { StartGame } from './features/game/application/usecases/start-game.js';
+import { UpdateRule } from './features/game/application/usecases/update-rule.js';
 import { StartQuickStartGame } from './features/game/application/usecases/start-quick-start-game.js';
 import { SubmitAnswer } from './features/game/application/usecases/submit-answer.js';
 import { TypeAnswer } from './features/game/application/usecases/type-answer.js';
 import { Vote } from './features/game/application/usecases/vote.js';
 import { PLAYER_COUNT, type GameOption } from './features/game/domain/game-option.js';
+import { MAX_STROKES_PER_TURN } from './features/game/domain/game-rule.js';
 import type { Limits } from './features/game/domain/limits.js';
 import { JsonKeywordRepository } from './features/game/infrastructure/keywords/json-keyword-repository.js';
 import { SqliteRoomRepository } from './features/game/infrastructure/sqlite/sqlite-room-repository.js';
@@ -58,6 +60,9 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
   const scheduler = new TimeoutScheduler();
   const random = new CryptoRandom();
   const keywords = JsonKeywordRepository.load(env.KEYWORDS_DIR);
+  if (env.GAME_STROKES_PER_TURN > MAX_STROKES_PER_TURN) {
+    throw new Error(`GAME_STROKES_PER_TURN must be at most ${MAX_STROKES_PER_TURN}`);
+  }
   const option: GameOption = {
     ...PLAYER_COUNT,
     readyMs: env.GAME_READY_MS,
@@ -65,7 +70,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     roundAnimationMs: env.GAME_ROUND_ANIMATION_MS,
     rounds: env.GAME_ROUNDS,
     turnMs: env.GAME_TURN_MS,
-    strokesPerTurn: env.GAME_STROKES_PER_TURN,
+    defaultStrokesPerTurn: env.GAME_STROKES_PER_TURN,
     voteMs: env.GAME_VOTE_MS,
     answerMs: env.GAME_ANSWER_MS,
   };
@@ -74,6 +79,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     reactionThrottleMs: env.REACTION_THROTTLE_MS,
     maxStrokePoints: env.MAX_STROKE_POINTS,
     maxAnswerLength: env.MAX_ANSWER_LENGTH,
+    maxStrokesPerTurn: MAX_STROKES_PER_TURN,
   };
 
   const tokens = new JoseTokenService(env.JWT_SECRET, env.ACCESS_TOKEN_TTL_SEC);
@@ -95,7 +101,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     },
     logger,
   );
-  const publisher = new WsRoomEventPublisher(ws);
+  const publisher = new WsRoomEventPublisher(ws, keywords);
   const membership = new Membership(rooms, publisher, scheduler, clock);
   const timer = new PhaseTimer(rooms, publisher, scheduler, clock);
 
@@ -129,8 +135,10 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     createRoom: new CreateRoom(rooms, membership, matchmaking, ids, option),
     joinRoom: new JoinRoom(rooms, membership, matchmaking, publisher),
     leaveRoom: new LeaveRoom(rooms, membership, publisher, clock),
+    keywords,
   });
   registerGameHandlers(router, limits, {
+    updateRule: new UpdateRule(rooms, publisher, keywords),
     startGame: new StartGame(rooms, publisher, timer, keywords, random, clock, gameStartPush),
     drawStroke: new DrawStroke(rooms, publisher, clock),
     clearSketch: new ClearSketch(rooms, publisher, clock),
@@ -160,6 +168,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
       queue: matchmaking,
       clock,
       limits,
+      keywords,
     }),
   });
 
