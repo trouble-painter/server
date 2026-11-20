@@ -104,7 +104,7 @@ export function registerGameHandlers(
     deps.react.execute(userId, reaction);
     return null;
   });
-  router.register(ClientMessageType.Vote, z.object({ targetId: UserIdSchema }), (userId, { targetId }) => {
+  router.register(ClientMessageType.Vote, z.object({ targetId: UserIdSchema.nullable() }), (userId, { targetId }) => {
     deps.vote.execute(userId, targetId);
     return null;
   });

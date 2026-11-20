@@ -209,6 +209,15 @@ describe('Room game flow', () => {
     expect(phase(room, PhaseType.Vote).votes).toEqual(new Map([[A, C]]));
   });
 
+  it('lets a voter withdraw their vote with a null target', () => {
+    const { room } = votingRoom();
+    room.vote(A, C);
+    room.vote(B, C);
+    const events = room.vote(A, null);
+    expect(events).toEqual([{ type: RoomEventType.VotesChanged, votes: new Map([[B, C]]) }]);
+    expect(room.vote(A, null)).toEqual([{ type: RoomEventType.VotesChanged, votes: new Map([[B, C]]) }]);
+  });
+
   it('keeps the vote open until the deadline even when everyone has voted', () => {
     const { room, now } = votingRoom();
     room.vote(A, C);

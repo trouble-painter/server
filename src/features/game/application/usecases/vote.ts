@@ -10,7 +10,7 @@ export class Vote {
   ) {}
 
   /** A vote never ends the phase: the phase timer tallies at the deadline. */
-  execute(userId: UserId, targetId: UserId): void {
+  execute(userId: UserId, targetId: UserId | null): void {
     const room = requireRoom(this.rooms, userId);
     const events = room.vote(userId, targetId);
     this.rooms.save(room);

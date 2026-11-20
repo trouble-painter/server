@@ -293,13 +293,17 @@ export class Room {
     return [{ type: RoomEventType.ReactionSent, userId, reaction }];
   }
 
-  /** Voting again changes the vote, and a vote for oneself counts. Tallied only at the deadline. */
-  vote(userId: UserId, targetId: UserId): RoomEvent[] {
+  /** Voting again changes the vote, a vote for oneself counts, and a null target withdraws it. Tallied only at the deadline. */
+  vote(userId: UserId, targetId: UserId | null): RoomEvent[] {
     const phase = this.#phaseOf(PhaseType.Vote);
-    if (!phase.game.turnOrder.includes(targetId)) {
+    const votes = new Map(phase.votes);
+    if (targetId === null) {
+      votes.delete(userId);
+    } else if (phase.game.turnOrder.includes(targetId)) {
+      votes.set(userId, targetId);
+    } else {
       throw new GameError(GameErrorCode.InvalidRequest);
     }
-    const votes = new Map(phase.votes).set(userId, targetId);
     this.#phase = { ...phase, votes };
     return [{ type: RoomEventType.VotesChanged, votes }];
   }
