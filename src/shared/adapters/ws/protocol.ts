@@ -11,6 +11,7 @@ export enum ClientMessageType {
   LeaveRoom = 'LEAVE_ROOM',
   UpdateRule = 'UPDATE_RULE',
   SetReady = 'SET_READY',
+  KickPlayer = 'KICK_PLAYER',
   StartGame = 'START_GAME',
   DrawStroke = 'DRAW_STROKE',
   ClearSketch = 'CLEAR_SKETCH',
@@ -43,6 +44,7 @@ export enum ServerMessageType {
 
 export enum IdleReason {
   Left = 'LEFT',
+  Kicked = 'KICKED',
   MatchCanceled = 'MATCH_CANCELED',
 }
 

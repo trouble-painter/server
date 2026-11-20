@@ -161,6 +161,29 @@ describe('WebSocket rooms', () => {
     expect(await playingRoom(a.accessToken)).toBeNull();
   });
 
+  it('the host kicks a player, who goes idle while the others see the new players', async () => {
+    const a = await user();
+    const roomId = (await a.client.request('CREATE_ROOM', { nickname: 'A', locale: 'KO' })).data.room.id;
+    const b = await user();
+    await b.client.request('JOIN_ROOM', { roomId, nickname: 'B' });
+    const c = await user();
+    await c.client.request('JOIN_ROOM', { roomId, nickname: 'C' });
+    await a.client.next();
+    await a.client.next();
+    await b.client.next();
+
+    expect((await b.client.request('KICK_PLAYER', { targetId: c.userId })).data.code).toBe('NOT_HOST');
+    expect((await a.client.request('KICK_PLAYER', { targetId: a.userId })).data.code).toBe('INVALID_REQUEST');
+    expect((await a.client.request('KICK_PLAYER', { targetId: 999_999 })).data.code).toBe('INVALID_REQUEST');
+
+    a.client.send('KICK_PLAYER', { targetId: c.userId });
+    expect(await c.client.next()).toEqual({ type: 'IDLE', data: { reason: 'KICKED' } });
+    for (const remaining of [a, b]) {
+      expect((await remaining.client.next()).data.players.map((p: any) => p.id)).toEqual([a.userId, b.userId]);
+    }
+    expect(await playingRoom(c.accessToken)).toBeNull();
+  });
+
   it('creating another room leaves the waiting room', async () => {
     const a = await user();
     const roomId = (await a.client.request('CREATE_ROOM', { nickname: 'A', locale: 'KO' })).data.room.id;

@@ -230,6 +230,20 @@ export class Room {
     return [PLAYERS_CHANGED];
   }
 
+  /** Throws unless the host of a waiting custom room may kick `targetId`, another player of the room. */
+  assertCanKick(userId: UserId, targetId: UserId): void {
+    this.#phaseOf(PhaseType.Wait);
+    if (this.isQuickStart) {
+      throw new GameError(GameErrorCode.InvalidRequest);
+    }
+    if (userId !== this.#hostId) {
+      throw new GameError(GameErrorCode.NotHost);
+    }
+    if (targetId === userId || this.#find(targetId) === undefined) {
+      throw new GameError(GameErrorCode.InvalidRequest);
+    }
+  }
+
   /** Only the host of a waiting custom room, and it takes back everyone's ready; `allCategoryIds` are every category of the room's locale. */
   updateRule(userId: UserId, rule: GameRule, allCategoryIds: readonly string[]): RoomEvent[] {
     this.#phaseOf(PhaseType.Wait);

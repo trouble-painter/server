@@ -6,6 +6,7 @@ import { registerPlayingRoomRoute } from './features/game/adapters/http/playing-
 import { registerGameHandlers } from './features/game/adapters/ws/game-handlers.js';
 import { connectionHandlers, registerRoomHandlers } from './features/game/adapters/ws/room-handlers.js';
 import { mapGameError } from './features/game/adapters/ws/wire.js';
+import { WsKickedNotifier } from './features/game/adapters/ws/ws-kicked-notifier.js';
 import { WsRoomEventPublisher } from './features/game/adapters/ws/ws-room-event-publisher.js';
 import { GameStartPush } from './features/game/application/game-start-push.js';
 import { Membership } from './features/game/application/membership.js';
@@ -20,6 +21,7 @@ import { DrawStroke } from './features/game/application/usecases/draw-stroke.js'
 import { EndTurn } from './features/game/application/usecases/end-turn.js';
 import { GetPlayingRoom } from './features/game/application/usecases/get-playing-room.js';
 import { JoinRoom } from './features/game/application/usecases/join-room.js';
+import { KickPlayer } from './features/game/application/usecases/kick-player.js';
 import { LeaveRoom } from './features/game/application/usecases/leave-room.js';
 import { React } from './features/game/application/usecases/react.js';
 import { RestoreRooms } from './features/game/application/usecases/restore-rooms.js';
@@ -142,6 +144,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
   registerGameHandlers(router, limits, {
     updateRule: new UpdateRule(rooms, publisher, keywords),
     setReady: new SetReady(rooms, publisher),
+    kickPlayer: new KickPlayer(rooms, membership, new WsKickedNotifier(ws)),
     startGame: new StartGame(rooms, publisher, timer, keywords, random, clock, gameStartPush),
     drawStroke: new DrawStroke(rooms, publisher, clock),
     clearSketch: new ClearSketch(rooms, publisher, clock),

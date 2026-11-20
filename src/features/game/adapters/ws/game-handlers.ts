@@ -6,6 +6,7 @@ import type { GameStartPush } from '../../application/game-start-push.js';
 import type { ClearSketch } from '../../application/usecases/clear-sketch.js';
 import type { DrawStroke } from '../../application/usecases/draw-stroke.js';
 import type { EndTurn } from '../../application/usecases/end-turn.js';
+import type { KickPlayer } from '../../application/usecases/kick-player.js';
 import type { React } from '../../application/usecases/react.js';
 import type { SetReady } from '../../application/usecases/set-ready.js';
 import type { StartGame } from '../../application/usecases/start-game.js';
@@ -49,6 +50,7 @@ export function registerGameHandlers(
   deps: {
     updateRule: UpdateRule;
     setReady: SetReady;
+    kickPlayer: KickPlayer;
     startGame: StartGame;
     drawStroke: DrawStroke;
     clearSketch: ClearSketch;
@@ -80,6 +82,10 @@ export function registerGameHandlers(
   );
   router.register(ClientMessageType.SetReady, z.object({ isReady: z.boolean() }), (userId, { isReady }) => {
     deps.setReady.execute(userId, isReady);
+    return null;
+  });
+  router.register(ClientMessageType.KickPlayer, z.object({ targetId: UserIdSchema }), (userId, { targetId }) => {
+    deps.kickPlayer.execute(userId, targetId);
     return null;
   });
   router.register(ClientMessageType.StartGame, z.object({}), (userId) => {
