@@ -20,6 +20,7 @@ type LocaleKey = Uppercase<`${Locale}`>;
 export enum PushTextPrefix {
   QuickStart = 'PUSH_',
   GameStart = 'PUSH_GAME_START_',
+  MatchFound = 'PUSH_MATCH_FOUND_',
 }
 
 type PushTextKey<P extends PushTextPrefix> = `${P}TITLE_${LocaleKey}` | `${P}BODY_${LocaleKey}`;
@@ -69,6 +70,7 @@ const EnvSchema = z.object({
   MATCH_MIN: positiveInt,
   MATCH_TARGET: positiveInt,
   MATCH_WAIT_MS: positiveInt,
+  MATCH_ACCEPT_MS: positiveInt,
   MATCH_DISCONNECT_GRACE_MS: positiveInt,
   /** false logs pushes instead of sending them; the key path is then not read. */
   PUSH_ENABLED: flag,
@@ -77,6 +79,7 @@ const EnvSchema = z.object({
   PUSH_COOLDOWN_MS: positiveInt,
   ...pushTextShape(PushTextPrefix.QuickStart),
   ...pushTextShape(PushTextPrefix.GameStart),
+  ...pushTextShape(PushTextPrefix.MatchFound),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

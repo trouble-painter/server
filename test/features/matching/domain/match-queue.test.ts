@@ -5,7 +5,7 @@ import { pushDueAt } from '../../../../src/features/matching/domain/push-rule.js
 import { Locale } from '../../../../src/shared/domain/locale.js';
 import type { UserId } from '../../../../src/shared/domain/user-id.js';
 
-const RULE: MatchRule = { min: 3, target: 6, waitMs: 10_000 };
+const RULE: MatchRule = { min: 3, target: 6, waitMs: 10_000, acceptMs: 5_000 };
 const T0 = 1_000_000;
 const uid = (n: number) => n as UserId;
 const nick = (n: number) => `P${n}` as Nickname;
@@ -39,7 +39,7 @@ describe('MatchQueue', () => {
     expect(queue.settle(queue.deadline! - 1)).toEqual([]);
     const matched = queue.settle(queue.deadline!);
     expect(ids(matched)).toEqual([1, 2, 3, 4].map(uid));
-    expect(queue.status.waitingCount).toBe(0);
+    expect(queue.statusOf(uid(1)).waitingCount).toBe(0);
     expect(queue.deadline).toBeNull();
   });
 
@@ -66,9 +66,74 @@ describe('MatchQueue', () => {
   it('neither counts nor matches disconnected players', () => {
     const queue = queueOf(4);
     queue.setConnected(uid(2), false);
-    expect(queue.status).toEqual({ locale: Locale.Ko, waitingCount: 3, startsAt: T0 + 3 + RULE.waitMs, minCount: RULE.min, waitMs: RULE.waitMs });
+    expect(queue.statusOf(uid(1))).toEqual({ locale: Locale.Ko, waitingCount: 3, startsAt: T0 + 3 + RULE.waitMs, minCount: RULE.min, waitMs: RULE.waitMs, ready: null });
     expect(ids(queue.settle(queue.deadline!))).toEqual([1, 3, 4].map(uid));
     expect(queue.has(uid(2))).toBe(true);
+  });
+});
+
+describe('MatchQueue accept step', () => {
+  /** Users 1..count matched at `T0 + 100`, so the accept step ends at `T0 + 100 + acceptMs`. */
+  function matchedQueue(count: number): MatchQueue {
+    const queue = queueOf(count);
+    queue.settle(queue.deadline ?? T0 + 100);
+    return queue;
+  }
+  const NOW = T0 + 100;
+
+  it('keeps the matched in the queue and tells each their step', () => {
+    const queue = queueOf(3);
+    const matched = queue.settle(queue.deadline!);
+    expect(ids(matched)).toEqual([1, 2, 3].map(uid));
+    expect(queue.has(uid(1))).toBe(true);
+    const endsAt = queue.readyEndsAt!;
+    expect(endsAt).toBe(T0 + 3 + RULE.waitMs + RULE.acceptMs);
+    expect(queue.statusOf(uid(1)).ready).toEqual({ endsAt, acceptMs: RULE.acceptMs, isAccepted: false });
+    queue.accept(uid(1));
+    expect(queue.statusOf(uid(1)).ready?.isAccepted).toBe(true);
+    expect(queue.statusOf(uid(2)).ready?.isAccepted).toBe(false);
+  });
+
+  it('matches nobody else while the step runs, and counts newcomers apart', () => {
+    const queue = matchedQueue(3);
+    for (const n of [4, 5, 6]) {
+      queue.join(uid(n), nick(n), NOW + n);
+    }
+    expect(queue.settle(NOW + 10)).toEqual([]);
+    expect(queue.statusOf(uid(4))).toMatchObject({ waitingCount: 3, startsAt: null, ready: null });
+    expect(queue.connected.length).toBe(6);
+  });
+
+  it('is complete once everyone present accepted', () => {
+    const queue = matchedQueue(3);
+    expect(queue.isCheckComplete).toBe(false);
+    queue.accept(uid(1));
+    queue.accept(uid(2));
+    expect(queue.isCheckComplete).toBe(false);
+    queue.remove(uid(3));
+    expect(queue.isCheckComplete).toBe(true);
+  });
+
+  it('resolve takes out those who did not accept or lost connection', () => {
+    const queue = matchedQueue(4);
+    queue.accept(uid(1));
+    queue.accept(uid(2));
+    queue.accept(uid(3));
+    queue.setConnected(uid(3), false);
+    const { accepted, declined } = queue.resolve();
+    expect(ids(accepted)).toEqual([uid(1), uid(2)]);
+    expect(ids(declined)).toEqual([uid(3), uid(4)]);
+    expect(queue.has(uid(3))).toBe(false);
+    expect(queue.has(uid(4))).toBe(false);
+    expect(queue.readyEndsAt).toBeNull();
+  });
+
+  it('puts those who stay back in the waiting pool after resolve', () => {
+    const queue = matchedQueue(3);
+    queue.accept(uid(1));
+    queue.resolve();
+    expect(ids(queue.waiting)).toEqual([uid(1)]);
+    expect(queue.statusOf(uid(1)).ready).toBeNull();
   });
 });
 

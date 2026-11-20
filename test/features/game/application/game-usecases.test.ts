@@ -64,7 +64,7 @@ describe('game use cases', () => {
     membership = new Membership(rooms, publisher, scheduler, clock);
     timer = new PhaseTimer(rooms, publisher, scheduler, clock);
     pushed = [];
-    push = new GameStartPush({ notifyGameStarted: (locale, tokens) => pushed.push([locale, tokens]) });
+    push = new GameStartPush({ notifyGameStarted: (locale, tokens) => pushed.push([locale, tokens]), notifyMatchFound: () => {} });
     room = new CreateRoom(rooms, membership, new RecordingQueue(), ONE_CODE, TEST_OPTION).execute(A, NICK, Locale.Ko);
     const join = new JoinRoom(rooms, membership, new RecordingQueue(), publisher);
     join.execute(B, room.id, NICK);

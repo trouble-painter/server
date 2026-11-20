@@ -5,6 +5,7 @@ import type { UserId } from '../../../shared/domain/user-id.js';
 import type { Nickname } from '../../game/domain/nickname.js';
 import { MatchQueue, type MatchingStatus, type MatchRule } from '../domain/match-queue.js';
 import { pushDueAt, type PushRule } from '../domain/push-rule.js';
+import type { MatchFoundPush } from './ports/match-found-push.js';
 import type { MatchingPublisher } from './ports/matching-publisher.js';
 import type { PushNotifier } from './ports/push-notifier.js';
 import type { QuickStartRooms } from './ports/quick-start-rooms.js';
@@ -13,6 +14,11 @@ import type { RoomMembership } from './ports/room-membership.js';
 /** Scheduler key of the timer that matches a locale's queue when its deadline passes. */
 export function matchDeadlineKey(locale: Locale): string {
   return `match:${locale}`;
+}
+
+/** Scheduler key of the timer that ends a locale's accept step. */
+export function readyKey(locale: Locale): string {
+  return `ready:${locale}`;
 }
 
 /** Scheduler key of the timer that sends a locale's waiting push. */
@@ -38,16 +44,16 @@ export class Matchmaking {
     private readonly quickStart: QuickStartRooms,
     private readonly publisher: MatchingPublisher,
     private readonly notifier: PushNotifier,
+    private readonly matchFoundPush: MatchFoundPush,
     private readonly scheduler: Scheduler,
     private readonly clock: Clock,
   ) {}
 
   /**
    * Leaves a waiting room or another locale's queue first; someone already in this queue keeps
-   * their place. Returns the requester's status, or null when they were matched at once and
-   * already got their room.
+   * their place. Returns the requester's status; a user matched at once is in the accept step.
    */
-  join(userId: UserId, nickname: Nickname, locale: Locale): MatchingStatus | null {
+  join(userId: UserId, nickname: Nickname, locale: Locale): MatchingStatus {
     this.rooms.release(userId);
     const current = this.#queueOf(userId);
     if (current !== undefined && current.locale !== locale) {
@@ -57,7 +63,24 @@ export class Matchmaking {
     const queue = this.#queue(locale);
     queue.join(userId, nickname, this.clock.now());
     this.#changed(queue, userId);
-    return queue.has(userId) ? queue.status : null;
+    return queue.statusOf(userId);
+  }
+
+  /**
+   * Takes the user's accept; the game starts as soon as everyone matched has accepted. Returns
+   * their status, or null when they are not queued or the game has started (they got the room).
+   */
+  accept(userId: UserId): MatchingStatus | null {
+    const queue = this.#queueOf(userId);
+    if (queue === undefined) {
+      return null;
+    }
+    queue.accept(userId);
+    if (queue.isCheckComplete) {
+      this.#finishCheck(queue);
+      this.#broadcast(queue, userId);
+    }
+    return queue.has(userId) ? queue.statusOf(userId) : null;
   }
 
   /** Does nothing when the user is not queued, so a cancel that crosses a match or a restart is harmless. */
@@ -83,7 +106,7 @@ export class Matchmaking {
     this.#syncPush(queue);
     // The comeback may complete a match; run it once HELLO has gone out.
     this.scheduler.schedule(matchDeadlineKey(queue.locale), 0, () => this.#matchAndTell(queue));
-    return queue.status;
+    return queue.statusOf(userId);
   }
 
   /** A disconnected user stops counting at once and leaves the queue unless back within the grace period. */
@@ -99,7 +122,11 @@ export class Matchmaking {
 
   /** Tells everyone still waiting the new count; `except` gets its own reply. */
   #changed(queue: MatchQueue, except?: UserId): void {
-    this.#match(queue);
+    if (queue.isCheckComplete) {
+      this.#finishCheck(queue);
+    } else {
+      this.#match(queue);
+    }
     this.#broadcast(queue, except);
   }
 
@@ -111,24 +138,60 @@ export class Matchmaking {
     }
   }
 
-  /** Starts a game for whoever is matched now and re-arms the queue's timers. */
+  /** Starts the accept step for whoever is matched now and re-arms the queue's timers. */
   #match(queue: MatchQueue): boolean {
     const matched = queue.settle(this.clock.now());
     if (matched.length > 0) {
-      this.quickStart.start(queue.locale, matched);
+      this.matchFoundPush.notifyMatchFound(
+        queue.locale,
+        matched.map((e) => e.userId),
+      );
     }
     this.#syncDeadline(queue);
+    this.#syncReady(queue);
     this.#syncPush(queue);
     return matched.length > 0;
   }
 
+  /**
+   * Ends the accept step. Those who did not accept leave the queue; the rest start a game when
+   * `min` of them accepted, and otherwise wait on in the queue.
+   */
+  #finishCheck(queue: MatchQueue): void {
+    this.scheduler.cancel(readyKey(queue.locale));
+    const { accepted, declined } = queue.resolve();
+    for (const entry of declined) {
+      this.scheduler.cancel(queueLeaveKey(entry.userId));
+      this.publisher.declined(entry.userId);
+    }
+    if (accepted.length >= this.rule.min) {
+      for (const entry of accepted) {
+        queue.remove(entry.userId);
+      }
+      this.quickStart.start(queue.locale, accepted);
+    }
+    this.#match(queue);
+  }
+
   #broadcast(queue: MatchQueue, except?: UserId): void {
-    const status = queue.status;
-    for (const entry of queue.waiting) {
+    for (const entry of queue.connected) {
       if (entry.userId !== except) {
-        this.publisher.send(entry.userId, status);
+        this.publisher.send(entry.userId, queue.statusOf(entry.userId));
       }
     }
+  }
+
+  #syncReady(queue: MatchQueue): void {
+    const key = readyKey(queue.locale);
+    const endsAt = queue.readyEndsAt;
+    if (endsAt === null) {
+      this.scheduler.cancel(key);
+      return;
+    }
+    this.scheduler.schedule(key, Math.max(0, endsAt - this.clock.now()), () => {
+      this.#finishCheck(queue);
+      this.#broadcast(queue);
+    });
   }
 
   #syncDeadline(queue: MatchQueue): void {

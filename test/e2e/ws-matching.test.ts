@@ -8,6 +8,7 @@ import { Client, type Message } from '../support/ws-client.js';
 /** A quick match and a game that runs on short deadlines alone. */
 const FAST = {
   MATCH_WAIT_MS: '100',
+  MATCH_ACCEPT_MS: '150',
   GAME_READY_MS: '30',
   GAME_INTRO_ANIMATION_MS: '0',
   GAME_ROUND_ANIMATION_MS: '0',
@@ -60,13 +61,23 @@ describe('WebSocket quick start', () => {
     }
   }
 
+  /** The next MATCHING that carries an accept step. */
+  async function nextAcceptStep(client: Client): Promise<Message> {
+    for (;;) {
+      const message = await nextOfType(client, 'MATCHING');
+      if (message.data.ready !== null) {
+        return message;
+      }
+    }
+  }
+
   it('matches three players at the deadline and deletes the room once the result is out', async () => {
     await boot();
     const [a, b, c] = [await user(), await user(), await user()];
 
     expect(await a.client.request('MATCH_JOIN', { nickname: 'A', locale: 'KO' })).toEqual({
       type: 'MATCHING',
-      data: { locale: 'KO', waitingCount: 1, startsAt: null, minCount: 3, waitMs: 100 },
+      data: { locale: 'KO', waitingCount: 1, startsAt: null, minCount: 3, waitMs: 100, ready: null },
     });
     expect((await b.client.request('MATCH_JOIN', { nickname: 'B', locale: 'KO' })).data.waitingCount).toBe(2);
     expect((await a.client.next()).data.waitingCount).toBe(2);
@@ -77,6 +88,14 @@ describe('WebSocket quick start', () => {
       expect((await player.client.next()).data).toMatchObject({ waitingCount: 3, startsAt: third.startsAt, minCount: 3, waitMs: 100 });
     }
 
+    for (const player of [a, b, c]) {
+      const found = await nextAcceptStep(player.client);
+      expect(found.data.ready).toMatchObject({ acceptMs: 150, isAccepted: false });
+    }
+    // The last accept starts the game, so no one waits for a reply.
+    expect((await a.client.request('MATCH_ACCEPT')).data.ready.isAccepted).toBe(true);
+    b.client.send('MATCH_ACCEPT');
+    c.client.send('MATCH_ACCEPT');
     for (const player of [a, b, c]) {
       const ready = await nextOfType(player.client, 'ROOM');
       expect(ready.data.room).toMatchObject({ isQuickStart: true, hostId: a.userId, phase: { type: 'READY' } });
@@ -93,6 +112,27 @@ describe('WebSocket quick start', () => {
     expect(hello.data).toMatchObject({ room: null, matching: null });
   });
 
+  it('sends home whoever did not accept and requeues those who did when fewer than min accepted', async () => {
+    await boot();
+    const [a, b, c] = [await user(), await user(), await user()];
+    for (const [player, nickname] of [[a, 'A'], [b, 'B'], [c, 'C']] as const) {
+      await player.client.request('MATCH_JOIN', { nickname, locale: 'KO' });
+    }
+    for (const player of [a, b, c]) {
+      await nextAcceptStep(player.client);
+    }
+    await a.client.request('MATCH_ACCEPT');
+    await b.client.request('MATCH_ACCEPT');
+
+    expect(await nextOfType(c.client, 'IDLE')).toEqual({ type: 'IDLE', data: { reason: 'MATCH_DECLINED' } });
+    for (const player of [a, b]) {
+      const status = await nextOfType(player.client, 'MATCHING');
+      expect(status.data).toMatchObject({ waitingCount: 2, ready: null });
+    }
+    const { hello } = await connect(c.accessToken);
+    expect(hello.data).toMatchObject({ room: null, matching: null });
+  });
+
   it('cancelling tells the others the new count', async () => {
     await boot();
     const [a, b] = [await user(), await user()];
@@ -101,7 +141,7 @@ describe('WebSocket quick start', () => {
     await a.client.next();
 
     expect(await b.client.request('MATCH_CANCEL')).toEqual({ type: 'IDLE', data: { reason: 'MATCH_CANCELED' } });
-    expect(await a.client.next()).toEqual({ type: 'MATCHING', data: { locale: 'KO', waitingCount: 1, startsAt: null, minCount: 3, waitMs: 100 } });
+    expect(await a.client.next()).toEqual({ type: 'MATCHING', data: { locale: 'KO', waitingCount: 1, startsAt: null, minCount: 3, waitMs: 100, ready: null } });
   });
 
   it('a user who reconnects while queued gets the queue in HELLO', async () => {

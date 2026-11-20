@@ -32,6 +32,7 @@ export const TEST_ENV_SOURCE: Readonly<Record<string, string>> = {
   MATCH_MIN: '3',
   MATCH_TARGET: '6',
   MATCH_WAIT_MS: '10000',
+  MATCH_ACCEPT_MS: '5000',
   MATCH_DISCONNECT_GRACE_MS: '10000',
   PUSH_ENABLED: 'false',
   FCM_CREDENTIALS_PATH: 'unused-when-push-is-disabled.json',
@@ -45,6 +46,10 @@ export const TEST_ENV_SOURCE: Readonly<Record<string, string>> = {
   PUSH_GAME_START_BODY_KO: '시작 본문',
   PUSH_GAME_START_TITLE_EN: 'Start title',
   PUSH_GAME_START_BODY_EN: 'Start body',
+  PUSH_MATCH_FOUND_TITLE_KO: '매칭 제목',
+  PUSH_MATCH_FOUND_BODY_KO: '매칭 본문',
+  PUSH_MATCH_FOUND_TITLE_EN: 'Match title',
+  PUSH_MATCH_FOUND_BODY_EN: 'Match body',
 };
 
 export function testEnv(overrides: Record<string, string> = {}): Env {

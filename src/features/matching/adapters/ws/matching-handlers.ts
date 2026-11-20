@@ -11,11 +11,14 @@ export function registerMatchingHandlers(router: WsRouter, deps: { matchmaking: 
     ClientMessageType.MatchJoin,
     z.object({ nickname: NicknameSchema, locale: LocaleSchema }),
     (userId, { nickname, locale }) => {
-      const status = deps.matchmaking.join(userId, nickname, locale);
-      // Matched at once: the room has already been sent.
-      return status === null ? null : matchingMessage(status);
+      return matchingMessage(deps.matchmaking.join(userId, nickname, locale));
     },
   );
+  router.register(ClientMessageType.MatchAccept, z.object({}), (userId) => {
+    const status = deps.matchmaking.accept(userId);
+    // Not queued, or the game has started: the room has already been sent.
+    return status === null ? null : matchingMessage(status);
+  });
   router.register(ClientMessageType.MatchCancel, z.object({}), (userId) => {
     deps.matchmaking.release(userId);
     return idleMessage(IdleReason.MatchCanceled);

@@ -15,4 +15,8 @@ export class LogPushNotifier implements PushNotifier, GameStartPushSender {
   notifyGameStarted(locale: Locale, tokens: readonly string[]): void {
     this.logger.info({ locale, count: tokens.length }, 'game-start push skipped (PUSH_ENABLED=false)');
   }
+
+  notifyMatchFound(locale: Locale, tokens: readonly string[]): void {
+    this.logger.info({ locale, count: tokens.length }, 'match-found push skipped (PUSH_ENABLED=false)');
+  }
 }

@@ -15,6 +15,7 @@ const NICKNAME_PLACEHOLDER = '{nickname}';
 enum PushDataType {
   QuickStart = 'QUICK_START',
   GameStarted = 'GAME_STARTED',
+  MatchFound = 'MATCH_FOUND',
 }
 
 export interface PushText {
@@ -26,11 +27,12 @@ export interface PushText {
 export interface PushTexts {
   readonly quickStart: Readonly<Record<Locale, PushText>>;
   readonly gameStart: Readonly<Record<Locale, PushText>>;
+  readonly matchFound: Readonly<Record<Locale, PushText>>;
 }
 
 type Logger = Pick<BaseLogger, 'info' | 'warn'>;
 
-/** Sends through Firebase Cloud Messaging: the quick-start push to the locale's topic, the game-start push to devices. */
+/** Sends through Firebase Cloud Messaging: the quick-start push to the locale's topic, the game-start and match-found pushes to devices. */
 export class FcmPushNotifier implements PushNotifier, GameStartPushSender {
   private constructor(
     private readonly app: App,
@@ -74,6 +76,22 @@ export class FcmPushNotifier implements PushNotifier, GameStartPushSender {
         (result) =>
           this.logger.info({ sent: result.successCount, failed: result.failureCount }, 'game-start push sent'),
         (error: unknown) => this.logger.warn({ err: error, count: tokens.length }, 'game-start push failed'),
+      );
+  }
+
+  notifyMatchFound(locale: Locale, tokens: readonly string[]): void {
+    const text = this.texts.matchFound[locale];
+    this.messaging
+      .sendEachForMulticast({
+        tokens: [...tokens],
+        notification: { title: text.title, body: text.body },
+        data: { type: PushDataType.MatchFound },
+        android: { priority: 'high' },
+      })
+      .then(
+        (result) =>
+          this.logger.info({ sent: result.successCount, failed: result.failureCount }, 'match-found push sent'),
+        (error: unknown) => this.logger.warn({ err: error, count: tokens.length }, 'match-found push failed'),
       );
   }
 

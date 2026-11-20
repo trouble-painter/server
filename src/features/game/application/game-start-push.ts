@@ -1,4 +1,6 @@
+import type { Locale } from '../../../shared/domain/locale.js';
 import type { UserId } from '../../../shared/domain/user-id.js';
+import type { MatchFoundPush } from '../../matching/application/ports/match-found-push.js';
 import type { Room } from '../domain/room.js';
 import type { GameStartPushSender } from './ports/game-start-push-sender.js';
 
@@ -6,7 +8,7 @@ import type { GameStartPushSender } from './ports/game-start-push-sender.js';
  * Remembers each user's push token and tells a room's players when their game starts.
  * Kept in memory only: the app sends its token again after every HELLO.
  */
-export class GameStartPush {
+export class GameStartPush implements MatchFoundPush {
   readonly #tokenOf = new Map<UserId, string>();
   readonly #userOf = new Map<string, UserId>();
 
@@ -33,6 +35,13 @@ export class GameStartPush {
       .flatMap((p) => this.#tokenOf.get(p.userId) ?? []);
     if (tokens.length > 0) {
       this.sender.notifyGameStarted(room.locale, tokens);
+    }
+  }
+
+  notifyMatchFound(locale: Locale, userIds: readonly UserId[]): void {
+    const tokens = userIds.flatMap((id) => this.#tokenOf.get(id) ?? []);
+    if (tokens.length > 0) {
+      this.sender.notifyMatchFound(locale, tokens);
     }
   }
 }

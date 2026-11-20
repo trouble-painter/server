@@ -123,13 +123,14 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     gameStartPush,
   );
   const matchmaking = new Matchmaking(
-    createMatchRule({ min: env.MATCH_MIN, target: env.MATCH_TARGET, waitMs: env.MATCH_WAIT_MS }, PLAYER_COUNT),
+    createMatchRule({ min: env.MATCH_MIN, target: env.MATCH_TARGET, waitMs: env.MATCH_WAIT_MS, acceptMs: env.MATCH_ACCEPT_MS }, PLAYER_COUNT),
     { waitMs: env.PUSH_WAIT_MS, cooldownMs: env.PUSH_COOLDOWN_MS },
     env.MATCH_DISCONNECT_GRACE_MS,
     membership,
     { start: (locale, players) => startQuickStartGame.execute(locale, players) },
     new WsMatchingPublisher(ws),
     notifier,
+    gameStartPush,
     scheduler,
     clock,
   );
@@ -208,7 +209,11 @@ function createPushNotifier(env: Env, logger: FastifyBaseLogger): PushNotifier &
     >;
   return FcmPushNotifier.create(
     env.FCM_CREDENTIALS_PATH,
-    { quickStart: textsOf(PushTextPrefix.QuickStart), gameStart: textsOf(PushTextPrefix.GameStart) },
+    {
+      quickStart: textsOf(PushTextPrefix.QuickStart),
+      gameStart: textsOf(PushTextPrefix.GameStart),
+      matchFound: textsOf(PushTextPrefix.MatchFound),
+    },
     logger,
   );
 }

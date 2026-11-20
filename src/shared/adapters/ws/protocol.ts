@@ -22,6 +22,7 @@ export enum ClientMessageType {
   TypeAnswer = 'TYPE_ANSWER',
   SubmitAnswer = 'SUBMIT_ANSWER',
   MatchJoin = 'MATCH_JOIN',
+  MatchAccept = 'MATCH_ACCEPT',
   MatchCancel = 'MATCH_CANCEL',
   PushToken = 'PUSH_TOKEN',
 }
@@ -46,6 +47,7 @@ export enum IdleReason {
   Left = 'LEFT',
   Kicked = 'KICKED',
   MatchCanceled = 'MATCH_CANCELED',
+  MatchDeclined = 'MATCH_DECLINED',
 }
 
 export enum WireErrorCode {

@@ -9,6 +9,10 @@ export function matchingView(status: MatchingStatus) {
     startsAt: status.startsAt,
     minCount: status.minCount,
     waitMs: status.waitMs,
+    ready:
+      status.ready === null
+        ? null
+        : { endsAt: status.ready.endsAt, acceptMs: status.ready.acceptMs, isAccepted: status.ready.isAccepted },
   };
 }
 

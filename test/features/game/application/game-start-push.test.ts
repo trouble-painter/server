@@ -27,7 +27,7 @@ function roomOfABC(): Room {
 describe('GameStartPush', () => {
   function pushOf(): { push: GameStartPush; sent: [Locale, readonly string[]][] } {
     const sent: [Locale, readonly string[]][] = [];
-    return { push: new GameStartPush({ notifyGameStarted: (locale, tokens) => sent.push([locale, tokens]) }), sent };
+    return { push: new GameStartPush({ notifyGameStarted: (locale, tokens) => sent.push([locale, tokens]), notifyMatchFound: () => {} }), sent };
   }
 
   it('sends nothing when no player has a token', () => {
