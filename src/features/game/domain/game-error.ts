@@ -6,6 +6,7 @@ export enum GameErrorCode {
   NotInRoom = 'notInRoom',
   NotHost = 'notHost',
   NotEnoughPlayers = 'notEnoughPlayers',
+  NotAllReady = 'notAllReady',
   InvalidPhase = 'invalidPhase',
   NotYourTurn = 'notYourTurn',
   /** Well formed but against the rules, such as a vote for oneself or a skipped stroke index. */

@@ -20,6 +20,14 @@ const STROKE: Stroke = { x: [1, 2], y: [3, 4], t: [0, 10] };
 const CANVAS = { w: 300, h: 400 };
 const T0 = 1_000;
 
+function readyUp(room: Room): void {
+  for (const player of room.players) {
+    if (player.userId !== room.hostId) {
+      room.setReady(player.userId, true);
+    }
+  }
+}
+
 function roomOf(count: number): Room {
   const room = Room.create({
     id: 'K7Q2ZP' as RoomCode,
@@ -32,6 +40,7 @@ function roomOf(count: number): Room {
   for (let i = 2; i <= count; i++) {
     room.addPlayer(uid(i), NICK);
   }
+  readyUp(room);
   return room;
 }
 
@@ -310,6 +319,29 @@ describe('Room game flow', () => {
     expect(room.players.map((p) => p.userId)).toEqual([B, A]);
   });
 
+  it('only a non-host player of a waiting custom room readies up, and the host starts once all are ready', () => {
+    const room = roomOf(3);
+    room.setReady(C, false);
+    expect(room.players.map((p) => p.isReady)).toEqual([false, true, false]);
+    expect(room.setReady(C, false)).toEqual([]);
+    expect(codeOf(() => room.setReady(A, true))).toBe(GameErrorCode.InvalidRequest);
+    expect(codeOf(() => room.setReady(uid(9), true))).toBe(GameErrorCode.NotInRoom);
+    expect(codeOf(() => room.start(A, GAME, T0))).toBe(GameErrorCode.NotAllReady);
+    expect(room.setReady(C, true)).toEqual([{ type: RoomEventType.PlayersChanged }]);
+    room.start(A, GAME, T0);
+    expect(codeOf(() => room.setReady(B, false))).toBe(GameErrorCode.InvalidPhase);
+  });
+
+  it('a rule change takes everyone back to not ready, and a new host starts not ready', () => {
+    const room = roomOf(3);
+    room.updateRule(A, { strokesPerTurn: 1, categoryIds: [] }, ['animal']);
+    expect(room.players.map((p) => p.isReady)).toEqual([false, false, false]);
+    readyUp(room);
+    room.removePlayer(A, T0);
+    expect(room.hostId).toBe(B);
+    expect(room.players.map((p) => p.isReady)).toEqual([false, true]);
+  });
+
   it('only the host of a waiting custom room changes the rule, within range and with known categories', () => {
     const room = roomOf(3);
     const ids = ['animal', 'food'];
@@ -328,6 +360,7 @@ describe('Room game flow', () => {
     room.updateRule(A, { strokesPerTurn: 1, categoryIds: [] }, ids);
     expect(room.rule).toEqual({ strokesPerTurn: 1, categoryIds: [] });
 
+    readyUp(room);
     room.start(A, GAME, T0);
     expect(codeOf(() => room.updateRule(A, { strokesPerTurn: 1, categoryIds: [] }, ids))).toBe(GameErrorCode.InvalidPhase);
   });
@@ -340,6 +373,7 @@ describe('Room game flow', () => {
   it('the rule sets how many strokes a turn takes, or none at all', () => {
     const limited = roomOf(3);
     limited.updateRule(A, { strokesPerTurn: 1, categoryIds: [] }, ['animal']);
+    readyUp(limited);
     limited.start(A, GAME, T0);
     limited.expire(limited.version, T0 + TEST_OPTION.readyMs);
     const open = phase(limited, PhaseType.Drawing).turn.drawFrom;
@@ -348,6 +382,7 @@ describe('Room game flow', () => {
 
     const unlimited = roomOf(3);
     unlimited.updateRule(A, { strokesPerTurn: null, categoryIds: [] }, ['animal']);
+    readyUp(unlimited);
     unlimited.start(A, GAME, T0);
     unlimited.expire(unlimited.version, T0 + TEST_OPTION.readyMs);
     for (let index = 0; index < 20; index++) {

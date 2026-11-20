@@ -9,6 +9,7 @@ import { EndTurn } from '../../../../src/features/game/application/usecases/end-
 import { JoinRoom } from '../../../../src/features/game/application/usecases/join-room.js';
 import { LeaveRoom } from '../../../../src/features/game/application/usecases/leave-room.js';
 import { React } from '../../../../src/features/game/application/usecases/react.js';
+import { SetReady } from '../../../../src/features/game/application/usecases/set-ready.js';
 import { StartGame } from '../../../../src/features/game/application/usecases/start-game.js';
 import { UpdateRule } from '../../../../src/features/game/application/usecases/update-rule.js';
 import { StartQuickStartGame } from '../../../../src/features/game/application/usecases/start-quick-start-game.js';
@@ -68,6 +69,8 @@ describe('game use cases', () => {
     const join = new JoinRoom(rooms, membership, new RecordingQueue(), publisher);
     join.execute(B, room.id, NICK);
     join.execute(C, room.id, NICK);
+    new SetReady(rooms, publisher).execute(B, true);
+    new SetReady(rooms, publisher).execute(C, true);
     publisher.events.length = 0;
   });
 
@@ -110,9 +113,32 @@ describe('game use cases', () => {
     expect(room.rule).toEqual({ strokesPerTurn: 3, categoryIds: ['food'] });
     expect(publisher.events).toEqual([RoomEventType.RuleChanged]);
     expect(errorCode(() => new UpdateRule(rooms, publisher, keywords).execute(B, room.rule))).toBe(GameErrorCode.NotHost);
+    expect(room.players.map((p) => p.isReady)).toEqual([false, false, false]);
+    new SetReady(rooms, publisher).execute(B, true);
+    new SetReady(rooms, publisher).execute(C, true);
 
     new StartGame(rooms, publisher, timer, keywords, new FakeRandom(), clock, push).execute(A);
     expect(room.phase).toMatchObject({ game: { category: '음식' } });
+  });
+
+  it('readying up tells everyone, and the host starts only once every other player is ready', () => {
+    const setReady = new SetReady(rooms, publisher);
+    setReady.execute(C, false);
+    expect(publisher.events).toEqual([RoomEventType.PlayersChanged]);
+    expect(room.players.map((p) => p.isReady)).toEqual([false, true, false]);
+    expect(errorCode(() => start())).toBe(GameErrorCode.NotAllReady);
+    expect(room.phase.type).toBe(PhaseType.Wait);
+
+    setReady.execute(C, true);
+    start();
+    expect(room.phase.type).toBe(PhaseType.Ready);
+    expect(errorCode(() => setReady.execute(B, false))).toBe(GameErrorCode.InvalidPhase);
+  });
+
+  it('the host cannot ready up, and nobody outside a room can', () => {
+    const setReady = new SetReady(rooms, publisher);
+    expect(errorCode(() => setReady.execute(A, true))).toBe(GameErrorCode.InvalidRequest);
+    expect(errorCode(() => setReady.execute(99 as UserId, true))).toBe(GameErrorCode.NotInRoom);
   });
 
   it('refuses to start for a non-host or outside a room', () => {

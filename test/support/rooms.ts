@@ -13,7 +13,7 @@ const STROKE = { x: [1, 2], y: [3, 4], t: [0, 10] };
 const CANVAS = { w: 300, h: 400 };
 export const T0 = 1_000_000;
 
-/** A fresh room with players A, B, C and the given code. */
+/** A fresh room with host A and players B and C, both ready, and the given code. */
 export function waitingRoom(id = 'K7Q2ZP'): Room {
   const room = Room.create({
     id: id as RoomCode,
@@ -25,6 +25,8 @@ export function waitingRoom(id = 'K7Q2ZP'): Room {
   });
   room.addPlayer(B, 'B' as Nickname);
   room.addPlayer(C, 'C' as Nickname);
+  room.setReady(B, true);
+  room.setReady(C, true);
   return room;
 }
 

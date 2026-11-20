@@ -20,6 +20,8 @@ export interface Player {
   readonly nickname: Nickname;
   readonly color: PlayerColor;
   isConnected: boolean;
+  /** Only a non-host player of a waiting custom room readies up; the host's stays false. */
+  isReady: boolean;
 }
 
 const PLAYERS_CHANGED: RoomEvent = { type: RoomEventType.PlayersChanged };
@@ -180,7 +182,7 @@ export class Room {
     if (color === undefined) {
       throw new GameError(GameErrorCode.RoomFull);
     }
-    this.#players.push({ userId, nickname, color, isConnected: true });
+    this.#players.push({ userId, nickname, color, isConnected: true, isReady: false });
     this.#emptySince = null;
     return [PLAYERS_CHANGED];
   }
@@ -195,6 +197,7 @@ export class Room {
     const next = this.#players[0];
     if (userId === this.#hostId && next !== undefined) {
       this.#hostId = next.userId;
+      next.isReady = false;
     }
     this.#updateEmptySince(now);
     return [PLAYERS_CHANGED];
@@ -210,7 +213,24 @@ export class Room {
     return [PLAYERS_CHANGED];
   }
 
-  /** Only the host of a waiting custom room; `allCategoryIds` are every category of the room's locale. */
+  /** Only a non-host player of a waiting custom room. */
+  setReady(userId: UserId, isReady: boolean): RoomEvent[] {
+    this.#phaseOf(PhaseType.Wait);
+    const player = this.#find(userId);
+    if (player === undefined) {
+      throw new GameError(GameErrorCode.NotInRoom);
+    }
+    if (this.isQuickStart || userId === this.#hostId) {
+      throw new GameError(GameErrorCode.InvalidRequest);
+    }
+    if (player.isReady === isReady) {
+      return [];
+    }
+    player.isReady = isReady;
+    return [PLAYERS_CHANGED];
+  }
+
+  /** Only the host of a waiting custom room, and it takes back everyone's ready; `allCategoryIds` are every category of the room's locale. */
   updateRule(userId: UserId, rule: GameRule, allCategoryIds: readonly string[]): RoomEvent[] {
     this.#phaseOf(PhaseType.Wait);
     if (this.isQuickStart) {
@@ -221,6 +241,9 @@ export class Room {
     }
     assertValidRule(rule, allCategoryIds);
     this.#rule = { strokesPerTurn: rule.strokesPerTurn, categoryIds: [...rule.categoryIds] };
+    for (const player of this.#players) {
+      player.isReady = false;
+    }
     return [RULE_CHANGED];
   }
 
@@ -232,6 +255,9 @@ export class Room {
     }
     if (this.#players.filter((p) => p.isConnected).length < this.option.minPlayers) {
       throw new GameError(GameErrorCode.NotEnoughPlayers);
+    }
+    if (!this.isQuickStart && this.#players.some((p) => p.userId !== this.#hostId && !p.isReady)) {
+      throw new GameError(GameErrorCode.NotAllReady);
     }
   }
 

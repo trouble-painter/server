@@ -7,6 +7,7 @@ import type { ClearSketch } from '../../application/usecases/clear-sketch.js';
 import type { DrawStroke } from '../../application/usecases/draw-stroke.js';
 import type { EndTurn } from '../../application/usecases/end-turn.js';
 import type { React } from '../../application/usecases/react.js';
+import type { SetReady } from '../../application/usecases/set-ready.js';
 import type { StartGame } from '../../application/usecases/start-game.js';
 import type { SubmitAnswer } from '../../application/usecases/submit-answer.js';
 import type { TypeAnswer } from '../../application/usecases/type-answer.js';
@@ -47,6 +48,7 @@ export function registerGameHandlers(
   limits: Limits,
   deps: {
     updateRule: UpdateRule;
+    setReady: SetReady;
     startGame: StartGame;
     drawStroke: DrawStroke;
     clearSketch: ClearSketch;
@@ -76,6 +78,10 @@ export function registerGameHandlers(
       return null;
     },
   );
+  router.register(ClientMessageType.SetReady, z.object({ isReady: z.boolean() }), (userId, { isReady }) => {
+    deps.setReady.execute(userId, isReady);
+    return null;
+  });
   router.register(ClientMessageType.StartGame, z.object({}), (userId) => {
     deps.startGame.execute(userId);
     return null;

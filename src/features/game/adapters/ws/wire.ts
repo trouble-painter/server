@@ -58,6 +58,7 @@ const GAME_ERROR_WIRE: Record<GameErrorCode, WireErrorCode> = {
   [GameErrorCode.NotInRoom]: WireErrorCode.NotInRoom,
   [GameErrorCode.NotHost]: WireErrorCode.NotHost,
   [GameErrorCode.NotEnoughPlayers]: WireErrorCode.NotEnoughPlayers,
+  [GameErrorCode.NotAllReady]: WireErrorCode.NotAllReady,
   [GameErrorCode.InvalidPhase]: WireErrorCode.InvalidPhase,
   [GameErrorCode.NotYourTurn]: WireErrorCode.NotYourTurn,
   [GameErrorCode.InvalidRequest]: WireErrorCode.InvalidRequest,

@@ -23,6 +23,7 @@ import { JoinRoom } from './features/game/application/usecases/join-room.js';
 import { LeaveRoom } from './features/game/application/usecases/leave-room.js';
 import { React } from './features/game/application/usecases/react.js';
 import { RestoreRooms } from './features/game/application/usecases/restore-rooms.js';
+import { SetReady } from './features/game/application/usecases/set-ready.js';
 import { StartGame } from './features/game/application/usecases/start-game.js';
 import { UpdateRule } from './features/game/application/usecases/update-rule.js';
 import { StartQuickStartGame } from './features/game/application/usecases/start-quick-start-game.js';
@@ -140,6 +141,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
   });
   registerGameHandlers(router, limits, {
     updateRule: new UpdateRule(rooms, publisher, keywords),
+    setReady: new SetReady(rooms, publisher),
     startGame: new StartGame(rooms, publisher, timer, keywords, random, clock, gameStartPush),
     drawStroke: new DrawStroke(rooms, publisher, clock),
     clearSketch: new ClearSketch(rooms, publisher, clock),

@@ -35,6 +35,7 @@ function playerView(player: Readonly<Player>) {
     nickname: player.nickname,
     color: PLAYER_COLOR_WIRE[player.color],
     isConnected: player.isConnected,
+    isReady: player.isReady,
   };
 }
 

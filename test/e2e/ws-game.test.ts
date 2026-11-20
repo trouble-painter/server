@@ -68,7 +68,17 @@ describe('WebSocket game', () => {
     await c.client.request('JOIN_ROOM', { roomId, nickname: 'C' });
     await host.client.next();
     await b.client.next();
-    return [host, b, c];
+    const players: [Player, Player, Player] = [host, b, c];
+    await readyUp(players);
+    return players;
+  }
+
+  /** Everyone but the host (the first) readies up, and every PLAYERS is drained. */
+  async function readyUp(players: Player[]): Promise<void> {
+    for (const player of players.slice(1)) {
+      player.client.send('SET_READY', { isReady: true });
+      await expectNext(players, 'PLAYERS');
+    }
   }
 
   async function expectNext(players: Player[], type: string): Promise<Message[]> {
@@ -247,8 +257,11 @@ describe('WebSocket game', () => {
     await b.client.next();
     expect((await b.client.request('START_GAME')).data.code).toBe('NOT_HOST');
     expect((await b.client.request('VOTE', { targetId: host.userId })).data.code).toBe('INVALID_PHASE');
+    expect((await host.client.request('START_GAME')).data.code).toBe('NOT_ALL_READY');
+    expect((await host.client.request('SET_READY', { isReady: true })).data.code).toBe('INVALID_REQUEST');
 
     const players = [host, b, c];
+    await readyUp(players);
     const { order } = await startGame(players);
     expect((await order[1]!.client.request('END_TURN')).data.code).toBe('NOT_YOUR_TURN');
     const points = Array.from({ length: 501 }, (_, i) => i);

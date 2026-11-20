@@ -91,6 +91,7 @@ const rest = {
       nickname: branded(z.string(), toNickname),
       color: z.enum(PlayerColor),
       isConnected: z.boolean(),
+      isReady: z.boolean(),
     }),
   ),
   phase,

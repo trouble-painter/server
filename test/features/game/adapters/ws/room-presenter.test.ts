@@ -24,6 +24,8 @@ function startedRoom(): Room {
   });
   room.addPlayer(B, NICK);
   room.addPlayer(C, NICK);
+  room.setReady(B, true);
+  room.setReady(C, true);
   room.start(A, { mafiaId: C, category: '장소', keyword: { word: '도시', synonyms: [] }, turnOrder: [B, A, C] }, 0);
   return room;
 }
