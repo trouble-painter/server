@@ -15,7 +15,7 @@ export class UpdateRule {
   /** Everyone, the host included, gets the new rule as a ROOM of their own. */
   execute(userId: UserId, rule: GameRule): void {
     const room = requireRoom(this.rooms, userId);
-    const allCategoryIds = this.keywords.categories(room.locale).map((c) => c.id);
+    const allCategoryIds = this.keywords.categories(rule.keywordLocale).map((c) => c.id);
     const events = room.updateRule(userId, rule, allCategoryIds);
     this.rooms.save(room);
     this.publisher.publish(room, events);

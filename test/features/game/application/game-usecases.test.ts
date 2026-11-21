@@ -109,8 +109,8 @@ describe('game use cases', () => {
       { id: 'animal', category: '동물', keywords: [{ word: '고양이', synonyms: [] }] },
       { id: 'food', category: '음식', keywords: [{ word: '피자', synonyms: [] }] },
     ]);
-    new UpdateRule(rooms, publisher, keywords).execute(A, { strokesPerTurn: 3, categoryIds: ['food'] });
-    expect(room.rule).toEqual({ strokesPerTurn: 3, categoryIds: ['food'] });
+    new UpdateRule(rooms, publisher, keywords).execute(A, { strokesPerTurn: 3, categoryIds: ['food'], keywordLocale: Locale.Ko });
+    expect(room.rule).toEqual({ strokesPerTurn: 3, categoryIds: ['food'], keywordLocale: Locale.Ko });
     expect(publisher.events).toEqual([RoomEventType.RuleChanged]);
     expect(errorCode(() => new UpdateRule(rooms, publisher, keywords).execute(B, room.rule))).toBe(GameErrorCode.NotHost);
     expect(room.players.map((p) => p.isReady)).toEqual([false, false, false]);

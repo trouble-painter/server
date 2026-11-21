@@ -74,7 +74,7 @@ describe('WebSocket rooms', () => {
       isQuickStart: false,
       hostId: a.userId,
       option: { minPlayers: 3, maxPlayers: 10, rounds: 2, defaultStrokesPerTurn: 1 },
-      rule: { strokesPerTurn: 1, categoryIds: [] },
+      rule: { strokesPerTurn: 1, categoryIds: [], keywordLocale: 'KO' },
       phase: {
         type: 'WAIT',
         categories: [
@@ -106,7 +106,7 @@ describe('WebSocket rooms', () => {
     await b.client.request('JOIN_ROOM', { roomId: room.id, nickname: 'B' });
     await a.client.next();
 
-    const rule = { strokesPerTurn: null, categoryIds: ['food'] };
+    const rule = { strokesPerTurn: null, categoryIds: ['food'], keywordLocale: 'KO' };
     a.client.send('UPDATE_RULE', rule);
     for (const client of [a.client, b.client]) {
       const message = await client.next();
@@ -115,7 +115,28 @@ describe('WebSocket rooms', () => {
     }
 
     expect(await b.client.request('UPDATE_RULE', rule)).toEqual({ type: 'ERROR', data: { request: 'UPDATE_RULE', code: 'NOT_HOST' } });
-    expect(await a.client.request('UPDATE_RULE', { strokesPerTurn: 1, categoryIds: ['unknown'] })).toEqual({
+    expect(await a.client.request('UPDATE_RULE', { strokesPerTurn: 1, categoryIds: ['unknown'], keywordLocale: 'KO' })).toEqual({
+      type: 'ERROR',
+      data: { request: 'UPDATE_RULE', code: 'INVALID_REQUEST' },
+    });
+  });
+
+  it('the host picks the keyword language and the categories follow it', async () => {
+    const a = await user();
+    const room = (await a.client.request('CREATE_ROOM', { nickname: 'A', locale: 'KO' })).data.room;
+    expect(room.phase.categories).toEqual([
+      { id: 'animal', name: '동물' },
+      { id: 'food', name: '음식' },
+    ]);
+
+    const changed = await a.client.request('UPDATE_RULE', { strokesPerTurn: 1, categoryIds: ['food'], keywordLocale: 'EN' });
+    expect(changed.data.room.rule).toEqual({ strokesPerTurn: 1, categoryIds: ['food'], keywordLocale: 'EN' });
+    expect(changed.data.room.locale).toBe('KO');
+    expect(changed.data.room.phase.categories).toEqual([
+      { id: 'animal', name: 'Animals' },
+      { id: 'food', name: 'Food' },
+    ]);
+    expect(await a.client.request('UPDATE_RULE', { strokesPerTurn: 1, categoryIds: [], keywordLocale: 'JP' })).toEqual({
       type: 'ERROR',
       data: { request: 'UPDATE_RULE', code: 'INVALID_REQUEST' },
     });

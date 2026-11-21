@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ClientMessageType } from '../../../../shared/adapters/ws/protocol.js';
+import { ClientMessageType, LocaleSchema } from '../../../../shared/adapters/ws/protocol.js';
 import type { WsRouter } from '../../../../shared/adapters/ws/router.js';
 import { toUserId, type UserId } from '../../../../shared/domain/user-id.js';
 import type { GameStartPush } from '../../application/game-start-push.js';
@@ -74,6 +74,7 @@ export function registerGameHandlers(
     z.object({
       strokesPerTurn: z.number().int().nullable(),
       categoryIds: z.array(z.string().max(CATEGORY_ID_MAX_LENGTH)).max(CATEGORY_IDS_MAX),
+      keywordLocale: LocaleSchema,
     }),
     (userId, rule) => {
       deps.updateRule.execute(userId, rule);

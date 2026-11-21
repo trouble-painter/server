@@ -99,12 +99,26 @@ const rest = {
   version: count,
 };
 
-const RoomSnapshotV2Schema = z.object({
+const RoomSnapshotV3Schema = z.object({
   v: z.literal(ROOM_SNAPSHOT_VERSION),
   option: z.object({ ...option, defaultStrokesPerTurn: count }),
-  rule: z.object({ strokesPerTurn: count.nullable(), categoryIds: z.array(z.string()) }),
+  rule: z.object({ strokesPerTurn: count.nullable(), categoryIds: z.array(z.string()), keywordLocale: z.enum(Locale) }),
   ...rest,
 });
+
+/** Saved before the rule had a keyword locale: the keywords were in the room's locale. */
+const RoomSnapshotV2Schema = z
+  .object({
+    v: z.literal(2),
+    option: z.object({ ...option, defaultStrokesPerTurn: count }),
+    rule: z.object({ strokesPerTurn: count.nullable(), categoryIds: z.array(z.string()) }),
+    ...rest,
+  })
+  .transform(({ rule, ...snapshot }) => ({
+    ...snapshot,
+    v: ROOM_SNAPSHOT_VERSION as typeof ROOM_SNAPSHOT_VERSION,
+    rule: { ...rule, keywordLocale: snapshot.locale },
+  }));
 
 /** Saved before rooms had a rule: every room played the configured stroke count over all categories. */
 const RoomSnapshotV1Schema = z
@@ -113,8 +127,8 @@ const RoomSnapshotV1Schema = z
     ...snapshot,
     v: ROOM_SNAPSHOT_VERSION as typeof ROOM_SNAPSHOT_VERSION,
     option: { ...option, defaultStrokesPerTurn: strokesPerTurn },
-    rule: defaultRule(strokesPerTurn),
+    rule: defaultRule(strokesPerTurn, snapshot.locale),
   }));
 
 /** Checks a saved room before it is trusted; the annotation keeps it in step with {@link RoomSnapshot}. */
-export const RoomSnapshotSchema: z.ZodType<RoomSnapshot> = z.union([RoomSnapshotV2Schema, RoomSnapshotV1Schema]);
+export const RoomSnapshotSchema: z.ZodType<RoomSnapshot> = z.union([RoomSnapshotV3Schema, RoomSnapshotV2Schema, RoomSnapshotV1Schema]);

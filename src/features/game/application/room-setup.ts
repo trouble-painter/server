@@ -17,7 +17,7 @@ export function unusedRoomCode(rooms: RoomRepository, ids: IdGenerator): RoomCod
 /** One mafia, a random category among the rule's (all when it names none), a random keyword in it, and a shuffled turn order. */
 export function drawGame(room: Room, keywords: KeywordRepository, random: Random): Game {
   const playerIds = room.players.map((p) => p.userId);
-  const all = keywords.categories(room.locale);
+  const all = keywords.categories(room.rule.keywordLocale);
   const chosen = new Set(room.rule.categoryIds);
   const inPlay = all.filter((c) => chosen.has(c.id));
   // None chosen, or the chosen ones dropped from the keyword files: draw from all of them.

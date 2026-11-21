@@ -64,7 +64,7 @@ export class Room {
       params.isQuickStart,
       params.option,
       params.hostId,
-      defaultRule(params.option.defaultStrokesPerTurn),
+      defaultRule(params.option.defaultStrokesPerTurn, params.locale),
     );
     room.addPlayer(params.hostId, params.hostNickname);
     return room;
@@ -244,7 +244,7 @@ export class Room {
     }
   }
 
-  /** Only the host of a waiting custom room, and it takes back everyone's ready; `allCategoryIds` are every category of the room's locale. */
+  /** Only the host of a waiting custom room, and it takes back everyone's ready; `allCategoryIds` are every category of the rule's keyword locale. */
   updateRule(userId: UserId, rule: GameRule, allCategoryIds: readonly string[]): RoomEvent[] {
     this.#phaseOf(PhaseType.Wait);
     if (this.isQuickStart) {
@@ -254,7 +254,7 @@ export class Room {
       throw new GameError(GameErrorCode.NotHost);
     }
     assertValidRule(rule, allCategoryIds);
-    this.#rule = { strokesPerTurn: rule.strokesPerTurn, categoryIds: [...rule.categoryIds] };
+    this.#rule = { strokesPerTurn: rule.strokesPerTurn, categoryIds: [...rule.categoryIds], keywordLocale: rule.keywordLocale };
     for (const player of this.#players) {
       player.isReady = false;
     }

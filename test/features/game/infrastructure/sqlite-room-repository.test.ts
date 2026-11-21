@@ -119,6 +119,21 @@ describe('SqliteRoomRepository', () => {
     expect(restored.toSnapshot()).toEqual(room.toSnapshot());
   });
 
+  it('reads a room saved before the rule had a keyword locale with the room locale', () => {
+    const repository = open();
+    const room = waitingRoom('AAAA');
+    repository.close();
+    opened.splice(0);
+    const { rule: { keywordLocale: _keywordLocale, ...rule }, ...rest } = room.toSnapshot();
+    const v2 = { ...rest, v: 2, rule };
+    const db = new DatabaseSync(path);
+    db.prepare('INSERT INTO rooms VALUES (?, ?, ?)').run('AAAA', JSON.stringify(v2), clock.now());
+    db.close();
+
+    const restored = open().get(room.id)!;
+    expect(restored.toSnapshot()).toEqual(room.toSnapshot());
+  });
+
   it('keeps the room in memory and logs when a write fails', () => {
     const repository = open();
     const error = vi.spyOn(logger, 'error');

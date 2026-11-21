@@ -235,6 +235,7 @@ describe('WebSocket game', () => {
     const { client, hello } = await connect(away.accessToken);
     away.client = client;
     expect(hello.data.limits).toEqual({ drawThrottleMs: 50, reactionThrottleMs: 500, maxStrokePoints: 500, maxAnswerLength: 20, maxStrokesPerTurn: 5 });
+    expect(hello.data.ruleSpec).toEqual({ strokesPerTurn: { min: 1, max: 5 }, keywordLocales: ['KO', 'EN'] });
     expect(hello.data.room.phase).toMatchObject({
       type: 'DRAWING',
       turn: { drawerId: drawer.userId },

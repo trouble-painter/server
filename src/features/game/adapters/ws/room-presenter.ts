@@ -1,10 +1,11 @@
 import { IdleReason, localeToWire, ServerMessageType, type ServerMessage } from '../../../../shared/adapters/ws/protocol.js';
+import { Locale } from '../../../../shared/domain/locale.js';
 import type { UserId } from '../../../../shared/domain/user-id.js';
 import { matchingView } from '../../../matching/adapters/ws/matching-presenter.js';
 import type { MatchingStatus } from '../../../matching/domain/match-queue.js';
 import type { KeywordRepository } from '../../application/ports/keyword-repository.js';
 import type { GameOption } from '../../domain/game-option.js';
-import type { GameRule } from '../../domain/game-rule.js';
+import { MAX_STROKES_PER_TURN, MIN_STROKES_PER_TURN, type GameRule } from '../../domain/game-rule.js';
 import type { Limits } from '../../domain/limits.js';
 import { PhaseType, type Game, type Result, type Sketch, type Stroke, type Turn } from '../../domain/phase.js';
 import { Role } from '../../domain/role.js';
@@ -58,6 +59,7 @@ function ruleView(rule: GameRule) {
   return {
     strokesPerTurn: rule.strokesPerTurn,
     categoryIds: [...rule.categoryIds],
+    keywordLocale: localeToWire(rule.keywordLocale),
   };
 }
 
@@ -71,13 +73,21 @@ function limitsView(limits: Limits) {
   };
 }
 
-/** WAIT carries the categories a host can pick from, named in the room's locale. */
+/** What a host may pick in a rule: the stroke range and the keyword languages. */
+function ruleSpecView() {
+  return {
+    strokesPerTurn: { min: MIN_STROKES_PER_TURN, max: MAX_STROKES_PER_TURN },
+    keywordLocales: Object.values(Locale).map(localeToWire),
+  };
+}
+
+/** WAIT carries the categories a host can pick from, named in the rule's keyword locale. */
 function phaseView(room: Room, viewer: UserId, keywords: KeywordRepository) {
   const phase = room.phase;
   const type = PHASE_WIRE[phase.type];
   switch (phase.type) {
     case PhaseType.Wait:
-      return { type, categories: keywords.categories(room.locale).map((c) => ({ id: c.id, name: c.category })) };
+      return { type, categories: keywords.categories(room.rule.keywordLocale).map((c) => ({ id: c.id, name: c.category })) };
     case PhaseType.Ready:
       return { type, game: gameView(phase.game, viewer), deadline: phase.deadline };
     case PhaseType.Drawing:
@@ -176,6 +186,7 @@ export function helloMessage(
     data: {
       serverTime,
       limits: limitsView(limits),
+      ruleSpec: ruleSpecView(),
       room: room === null ? null : roomView(room, viewer, keywords),
       matching: matching === null ? null : matchingView(matching),
     },

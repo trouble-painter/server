@@ -7,7 +7,7 @@ import type { Phase, PhaseType } from './phase.js';
 import type { Player } from './room.js';
 
 /** Bump when the shape changes so older saved rooms can be told apart. */
-export const ROOM_SNAPSHOT_VERSION = 2;
+export const ROOM_SNAPSHOT_VERSION = 3;
 
 type VotePhase = Extract<Phase, { type: PhaseType.Vote }>;
 
