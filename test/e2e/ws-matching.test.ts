@@ -133,6 +133,72 @@ describe('WebSocket quick start', () => {
     expect(hello.data).toMatchObject({ room: null, matching: null });
   });
 
+  /** Joins every player, then answers each one's accept step and returns the rooms they get. */
+  async function playOut(players: Player[], locale: string): Promise<Message[]> {
+    for (const [index, player] of players.entries()) {
+      player.client.send('MATCH_JOIN', { nickname: `P${index}`, locale });
+    }
+    for (const player of players) {
+      await nextAcceptStep(player.client);
+    }
+    for (const player of players) {
+      player.client.send('MATCH_ACCEPT');
+    }
+    return Promise.all(players.map((player) => nextOfType(player.client, 'ROOM')));
+  }
+
+  it('runs two locales at the same time, each into its own room', async () => {
+    await boot();
+    const ko = [await user(), await user(), await user()];
+    const en = [await user(), await user(), await user()];
+
+    const [koRooms, enRooms] = await Promise.all([playOut(ko, 'KO'), playOut(en, 'EN')]);
+
+    const koRoom = koRooms[0]!.data.room;
+    const enRoom = enRooms[0]!.data.room;
+    expect(koRoom.id).not.toBe(enRoom.id);
+    expect(koRoom.players.map((p: { id: number }) => p.id).sort()).toEqual(ko.map((p) => p.userId).sort());
+    expect(enRoom.players.map((p: { id: number }) => p.id).sort()).toEqual(en.map((p) => p.userId).sort());
+    for (const message of [...koRooms, ...enRooms]) {
+      expect(message.data.room).toMatchObject({ isQuickStart: true, phase: { type: 'READY' } });
+    }
+  });
+
+  it('opens a second queue for newcomers while the first runs its accept step', async () => {
+    await boot();
+    const first = [await user(), await user(), await user(), await user(), await user(), await user()];
+    const second = [await user(), await user(), await user()];
+
+    for (const [index, player] of first.entries()) {
+      player.client.send('MATCH_JOIN', { nickname: `A${index}`, locale: 'KO' });
+    }
+    for (const player of first) {
+      await nextAcceptStep(player.client);
+    }
+
+    // The first queue is in its accept step, so these three wait in a queue of their own.
+    const replies = [];
+    for (const [index, player] of second.entries()) {
+      replies.push((await player.client.request('MATCH_JOIN', { nickname: `B${index}`, locale: 'KO' })).data);
+    }
+    expect(replies.map((r) => r.waitingCount)).toEqual([1, 2, 3]);
+    expect(replies.every((r) => r.ready === null)).toBe(true);
+
+    for (const player of first) {
+      player.client.send('MATCH_ACCEPT');
+    }
+    for (const player of second) {
+      await nextAcceptStep(player.client);
+      player.client.send('MATCH_ACCEPT');
+    }
+
+    const firstRooms = await Promise.all(first.map((p) => nextOfType(p.client, 'ROOM')));
+    const secondRooms = await Promise.all(second.map((p) => nextOfType(p.client, 'ROOM')));
+    expect(firstRooms[0]!.data.room.players).toHaveLength(6);
+    expect(secondRooms[0]!.data.room.players).toHaveLength(3);
+    expect(firstRooms[0]!.data.room.id).not.toBe(secondRooms[0]!.data.room.id);
+  });
+
   it('cancelling tells the others the new count', async () => {
     await boot();
     const [a, b] = [await user(), await user()];

@@ -39,9 +39,10 @@ export interface ReadyStatus {
   readonly isAccepted: boolean;
 }
 
-/** What a queued user is told: only connected players still waiting for a match count as waiting. */
+/** What a queued user is told about their own queue; players who lost connection do not count. */
 export interface MatchingStatus {
   readonly locale: Locale;
+  /** Connected players in the user's queue, the user included. */
   readonly waitingCount: number;
   /** When the waiting players will be matched; null until `min` are waiting. */
   readonly startsAt: number | null;
@@ -60,16 +61,29 @@ interface ReadyCheck {
   readonly accepted: Set<UserId>;
 }
 
-/** The quick-start queue of one locale, in join order. */
+/**
+ * One quick-start queue: up to `target` players of a locale who become one game. A locale has
+ * many queues side by side, so a full or matched queue never holds up the people behind it.
+ */
 export class MatchQueue {
   readonly #entries: QueueEntry[] = [];
   #deadline: number | null = null;
   #check: ReadyCheck | null = null;
 
   constructor(
+    readonly id: string,
     readonly locale: Locale,
     private readonly rule: MatchRule,
   ) {}
+
+  /** True while players can be added: not in an accept step and not full. */
+  get isJoinable(): boolean {
+    return this.#check === null && this.#entries.length < this.rule.target;
+  }
+
+  get isEmpty(): boolean {
+    return this.#entries.length === 0;
+  }
 
   /** When the waiting players are matched even if fewer than `target`; null below `min`. */
   get deadline(): number | null {
@@ -79,6 +93,20 @@ export class MatchQueue {
   /** When the current accept step ends; null when there is none. */
   get readyEndsAt(): number | null {
     return this.#check?.endsAt ?? null;
+  }
+
+  /** True while an accept step runs. */
+  get isChecking(): boolean {
+    return this.#check !== null;
+  }
+
+  /** True when an accept step runs and fewer than `min` of its members are still connected in the queue. */
+  get isCheckShort(): boolean {
+    const check = this.#check;
+    if (check === null) {
+      return false;
+    }
+    return [...check.members].filter((id) => this.#find(id)?.isConnected === true).length < this.rule.min;
   }
 
   /** True once everyone still in the accept step has accepted. */
@@ -94,7 +122,7 @@ export class MatchQueue {
     const check = this.#check;
     return {
       locale: this.locale,
-      waitingCount: this.#waiting().length,
+      waitingCount: this.connected.length,
       startsAt: this.#deadline,
       minCount: this.rule.min,
       waitMs: this.rule.waitMs,
@@ -127,6 +155,28 @@ export class MatchQueue {
     } else {
       entry.isConnected = true;
     }
+  }
+
+  /** Moves in someone from another queue, keeping their place in line. */
+  add(entry: QueueEntry): void {
+    this.#entries.push(entry);
+    this.#entries.sort((a, b) => a.enqueuedAt - b.enqueuedAt);
+  }
+
+  /** Keeps a countdown that already ran for players who moved in, so it is not restarted. */
+  inheritDeadline(deadline: number | null): void {
+    if (deadline !== null && this.#check === null && this.#waiting().length >= this.rule.min) {
+      this.#deadline = Math.min(this.#deadline ?? deadline, deadline);
+    }
+  }
+
+  /** Hands over the connected player who has waited longest, or undefined when there is none. */
+  take(): QueueEntry | undefined {
+    const entry = this.#waiting()[0];
+    if (entry !== undefined) {
+      this.remove(entry.userId);
+    }
+    return entry;
   }
 
   remove(userId: UserId): void {
@@ -178,6 +228,11 @@ export class MatchQueue {
     if (this.#check?.members.has(userId) === true) {
       this.#check.accepted.add(userId);
     }
+  }
+
+  /** Ends the accept step without a game: everyone in it, accepted or not, waits again as before. */
+  abort(): void {
+    this.#check = null;
   }
 
   /**

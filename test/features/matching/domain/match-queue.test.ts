@@ -12,7 +12,7 @@ const nick = (n: number) => `P${n}` as Nickname;
 
 /** A queue with users 1..count joined one millisecond apart, settled after each join. */
 function queueOf(count: number): MatchQueue {
-  const queue = new MatchQueue(Locale.Ko, RULE);
+  const queue = new MatchQueue('q', Locale.Ko, RULE);
   for (let n = 1; n <= count; n++) {
     queue.join(uid(n), nick(n), T0 + n);
     expect(queue.settle(T0 + n)).toEqual([]);
@@ -39,7 +39,7 @@ describe('MatchQueue', () => {
     expect(queue.settle(queue.deadline! - 1)).toEqual([]);
     const matched = queue.settle(queue.deadline!);
     expect(ids(matched)).toEqual([1, 2, 3, 4].map(uid));
-    expect(queue.statusOf(uid(1)).waitingCount).toBe(0);
+    expect(queue.statusOf(uid(1)).waitingCount).toBe(4);
     expect(queue.deadline).toBeNull();
   });
 
@@ -72,6 +72,31 @@ describe('MatchQueue', () => {
   });
 });
 
+describe('MatchQueue seats', () => {
+  it('is joinable until target players are in', () => {
+    const queue = queueOf(5);
+    expect(queue.isJoinable).toBe(true);
+    queue.join(uid(6), nick(6), T0 + 6);
+    expect(queue.isJoinable).toBe(false);
+  });
+
+  it('hands over the longest waiter and takes one in by place in line', () => {
+    const queue = queueOf(3);
+    const other = queueOf(2);
+    const entry = queue.take()!;
+    expect(entry.userId).toBe(uid(1));
+    expect(queue.has(uid(1))).toBe(false);
+    other.add({ ...entry, enqueuedAt: T0 + 99 });
+    expect(ids(other.waiting)).toEqual([1, 2, 1].map(uid));
+    expect(other.has(uid(1))).toBe(true);
+  });
+
+  it('takes nobody from an empty queue', () => {
+    expect(queueOf(0).take()).toBeUndefined();
+    expect(queueOf(0).isEmpty).toBe(true);
+  });
+});
+
 describe('MatchQueue accept step', () => {
   /** Users 1..count matched at `T0 + 100`, so the accept step ends at `T0 + 100 + acceptMs`. */
   function matchedQueue(count: number): MatchQueue {
@@ -94,14 +119,10 @@ describe('MatchQueue accept step', () => {
     expect(queue.statusOf(uid(2)).ready?.isAccepted).toBe(false);
   });
 
-  it('matches nobody else while the step runs, and counts newcomers apart', () => {
+  it('matches nobody else while the step runs and takes no newcomers', () => {
     const queue = matchedQueue(3);
-    for (const n of [4, 5, 6]) {
-      queue.join(uid(n), nick(n), NOW + n);
-    }
+    expect(queue.isJoinable).toBe(false);
     expect(queue.settle(NOW + 10)).toEqual([]);
-    expect(queue.statusOf(uid(4))).toMatchObject({ waitingCount: 3, startsAt: null, ready: null });
-    expect(queue.connected.length).toBe(6);
   });
 
   it('is complete once everyone present accepted', () => {

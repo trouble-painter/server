@@ -3,7 +3,7 @@ import type { Scheduler } from '../../../shared/application/ports/scheduler.js';
 import type { Locale } from '../../../shared/domain/locale.js';
 import type { UserId } from '../../../shared/domain/user-id.js';
 import type { Nickname } from '../../game/domain/nickname.js';
-import { MatchQueue, type MatchingStatus, type MatchRule } from '../domain/match-queue.js';
+import { MatchQueue, type MatchingStatus, type MatchRule, type QueueEntry } from '../domain/match-queue.js';
 import { pushDueAt, type PushRule } from '../domain/push-rule.js';
 import type { MatchFoundPush } from './ports/match-found-push.js';
 import type { MatchingPublisher } from './ports/matching-publisher.js';
@@ -11,14 +11,14 @@ import type { PushNotifier } from './ports/push-notifier.js';
 import type { QuickStartRooms } from './ports/quick-start-rooms.js';
 import type { RoomMembership } from './ports/room-membership.js';
 
-/** Scheduler key of the timer that matches a locale's queue when its deadline passes. */
-export function matchDeadlineKey(locale: Locale): string {
-  return `match:${locale}`;
+/** Scheduler key of the timer that matches a queue when its deadline passes. */
+export function matchDeadlineKey(queueId: string): string {
+  return `match:${queueId}`;
 }
 
-/** Scheduler key of the timer that ends a locale's accept step. */
-export function readyKey(locale: Locale): string {
-  return `ready:${locale}`;
+/** Scheduler key of the timer that ends a queue's accept step. */
+export function readyKey(queueId: string): string {
+  return `ready:${queueId}`;
 }
 
 /** Scheduler key of the timer that sends a locale's waiting push. */
@@ -31,10 +31,15 @@ export function queueLeaveKey(userId: UserId): string {
   return `queue-leave:${userId}`;
 }
 
-/** The quick-start queues, kept in memory only: losing them on a restart costs a few seconds of waiting. */
+/**
+ * The quick-start queues, kept in memory only: losing them on a restart costs a few seconds of
+ * waiting. A locale has as many queues as it needs, oldest first; each runs its own timers.
+ */
 export class Matchmaking {
-  readonly #queues = new Map<Locale, MatchQueue>();
+  readonly #queues = new Map<Locale, MatchQueue[]>();
+  readonly #queueOfUser = new Map<UserId, MatchQueue>();
   readonly #lastPushAt = new Map<Locale, number>();
+  #queueCount = 0;
 
   constructor(
     private readonly rule: MatchRule,
@@ -50,25 +55,28 @@ export class Matchmaking {
   ) {}
 
   /**
-   * Leaves a waiting room or another locale's queue first; someone already in this queue keeps
-   * their place. Returns the requester's status; a user matched at once is in the accept step.
+   * Leaves a waiting room or another locale's queue first; someone already in a queue of this
+   * locale keeps their place. A newcomer goes to the oldest queue that is waiting and not full,
+   * or to a new one. Returns the requester's status; a user matched at once is in the accept step.
    */
   join(userId: UserId, nickname: Nickname, locale: Locale): MatchingStatus {
     this.rooms.release(userId);
-    const current = this.#queueOf(userId);
-    if (current !== undefined && current.locale !== locale) {
+    let queue = this.#queueOf(userId);
+    if (queue !== undefined && queue.locale !== locale) {
       this.release(userId);
+      queue = undefined;
     }
     this.scheduler.cancel(queueLeaveKey(userId));
-    const queue = this.#queue(locale);
+    queue ??= this.#openQueue(locale);
     queue.join(userId, nickname, this.clock.now());
+    this.#queueOfUser.set(userId, queue);
     this.#changed(queue, userId);
-    return queue.statusOf(userId);
+    return this.#statusOf(userId);
   }
 
   /**
-   * Takes the user's accept; the game starts as soon as everyone matched has accepted. Returns
-   * their status, or null when they are not queued or the game has started (they got the room).
+   * Takes the user's accept; the game starts as soon as everyone matched with them has accepted.
+   * Returns their status, or null when they are not queued or the game has started (they got the room).
    */
   accept(userId: UserId): MatchingStatus | null {
     const queue = this.#queueOf(userId);
@@ -79,8 +87,9 @@ export class Matchmaking {
     if (queue.isCheckComplete) {
       this.#finishCheck(queue);
       this.#broadcast(queue, userId);
+      this.#rebalance(queue.locale);
     }
-    return queue.has(userId) ? queue.statusOf(userId) : null;
+    return this.#queueOf(userId) === undefined ? null : this.#statusOf(userId);
   }
 
   /** Does nothing when the user is not queued, so a cancel that crosses a match or a restart is harmless. */
@@ -91,6 +100,7 @@ export class Matchmaking {
     }
     this.scheduler.cancel(queueLeaveKey(userId));
     queue.remove(userId);
+    this.#queueOfUser.delete(userId);
     this.#changed(queue);
   }
 
@@ -103,9 +113,9 @@ export class Matchmaking {
     this.scheduler.cancel(queueLeaveKey(userId));
     queue.setConnected(userId, true);
     this.#broadcast(queue, userId);
-    this.#syncPush(queue);
+    this.#syncPush(queue.locale);
     // The comeback may complete a match; run it once HELLO has gone out.
-    this.scheduler.schedule(matchDeadlineKey(queue.locale), 0, () => this.#matchAndTell(queue));
+    this.scheduler.schedule(matchDeadlineKey(queue.id), 0, () => this.#matchAndTell(queue));
     return queue.statusOf(userId);
   }
 
@@ -120,14 +130,22 @@ export class Matchmaking {
     this.scheduler.schedule(queueLeaveKey(userId), this.disconnectGraceMs, () => this.release(userId));
   }
 
-  /** Tells everyone still waiting the new count; `except` gets its own reply. */
+  /**
+   * Tells everyone in the queue the new count; `except` gets its own reply. An accept step left
+   * with fewer than `min` members is called off and its members wait again. Empty places are
+   * then filled from the newer queues.
+   */
   #changed(queue: MatchQueue, except?: UserId): void {
+    if (queue.isCheckShort) {
+      queue.abort();
+    }
     if (queue.isCheckComplete) {
       this.#finishCheck(queue);
     } else {
       this.#match(queue);
     }
     this.#broadcast(queue, except);
+    this.#rebalance(queue.locale);
   }
 
   /** Tells the queue only when its status moved: someone matched, or the start time was set or cleared. */
@@ -149,7 +167,7 @@ export class Matchmaking {
     }
     this.#syncDeadline(queue);
     this.#syncReady(queue);
-    this.#syncPush(queue);
+    this.#syncPush(queue.locale);
     return matched.length > 0;
   }
 
@@ -158,19 +176,78 @@ export class Matchmaking {
    * `min` of them accepted, and otherwise wait on in the queue.
    */
   #finishCheck(queue: MatchQueue): void {
-    this.scheduler.cancel(readyKey(queue.locale));
+    this.scheduler.cancel(readyKey(queue.id));
     const { accepted, declined } = queue.resolve();
     for (const entry of declined) {
       this.scheduler.cancel(queueLeaveKey(entry.userId));
+      this.#queueOfUser.delete(entry.userId);
       this.publisher.declined(entry.userId);
     }
     if (accepted.length >= this.rule.min) {
       for (const entry of accepted) {
         queue.remove(entry.userId);
+        this.#queueOfUser.delete(entry.userId);
       }
       this.quickStart.start(queue.locale, accepted);
     }
     this.#match(queue);
+  }
+
+  /**
+   * Fills the places of each waiting queue, oldest first, with the longest waiters of the newest
+   * queues behind it, so older queues start first; a countdown that ran on carries over. Then
+   * drops queues left empty.
+   */
+  #rebalance(locale: Locale): void {
+    const queues = this.#queues.get(locale);
+    if (queues === undefined) {
+      return;
+    }
+    const touched = new Set<MatchQueue>();
+    for (const [index, receiver] of queues.entries()) {
+      let countdown: number | null = null;
+      while (receiver.isJoinable) {
+        const donor = queues.slice(index + 1).findLast((q) => !q.isChecking && q.waiting.length > 0);
+        const donorDeadline = donor?.deadline ?? null;
+        const entry = donor?.take();
+        if (donor === undefined || entry === undefined) {
+          break;
+        }
+        receiver.add(entry);
+        this.#queueOfUser.set(entry.userId, receiver);
+        touched.add(receiver).add(donor);
+        if (donorDeadline !== null) {
+          countdown = Math.min(countdown ?? donorDeadline, donorDeadline);
+        }
+      }
+      // Players who already counted down keep that time instead of starting over.
+      receiver.inheritDeadline(countdown);
+    }
+    for (const queue of touched) {
+      this.#match(queue);
+      this.#broadcast(queue);
+    }
+    this.#prune(locale);
+  }
+
+  #prune(locale: Locale): void {
+    const queues = this.#queues.get(locale);
+    if (queues === undefined) {
+      return;
+    }
+    const alive = queues.filter((queue) => {
+      if (!queue.isEmpty || queue.isChecking) {
+        return true;
+      }
+      this.scheduler.cancel(matchDeadlineKey(queue.id));
+      this.scheduler.cancel(readyKey(queue.id));
+      return false;
+    });
+    if (alive.length > 0) {
+      this.#queues.set(locale, alive);
+    } else {
+      this.#queues.delete(locale);
+    }
   }
 
   #broadcast(queue: MatchQueue, except?: UserId): void {
@@ -182,7 +259,7 @@ export class Matchmaking {
   }
 
   #syncReady(queue: MatchQueue): void {
-    const key = readyKey(queue.locale);
+    const key = readyKey(queue.id);
     const endsAt = queue.readyEndsAt;
     if (endsAt === null) {
       this.scheduler.cancel(key);
@@ -191,11 +268,12 @@ export class Matchmaking {
     this.scheduler.schedule(key, Math.max(0, endsAt - this.clock.now()), () => {
       this.#finishCheck(queue);
       this.#broadcast(queue);
+      this.#rebalance(queue.locale);
     });
   }
 
   #syncDeadline(queue: MatchQueue): void {
-    const key = matchDeadlineKey(queue.locale);
+    const key = matchDeadlineKey(queue.id);
     const deadline = queue.deadline;
     if (deadline === null) {
       this.scheduler.cancel(key);
@@ -204,47 +282,66 @@ export class Matchmaking {
     this.scheduler.schedule(key, Math.max(0, deadline - this.clock.now()), () => this.#matchAndTell(queue));
   }
 
-  #syncPush(queue: MatchQueue): void {
-    const key = pushKey(queue.locale);
-    const dueAt = this.#pushDueAt(queue);
+  #syncPush(locale: Locale): void {
+    const key = pushKey(locale);
+    const dueAt = this.#pushDueAt(locale);
     if (dueAt === null) {
       this.scheduler.cancel(key);
       return;
     }
-    this.scheduler.schedule(key, Math.max(0, dueAt - this.clock.now()), () => this.#push(queue));
+    this.scheduler.schedule(key, Math.max(0, dueAt - this.clock.now()), () => this.#push(locale));
   }
 
-  #push(queue: MatchQueue): void {
-    const oldest = queue.waiting[0];
-    const dueAt = this.#pushDueAt(queue);
+  #push(locale: Locale): void {
+    const oldest = this.#oldestWaiting(locale);
+    const dueAt = this.#pushDueAt(locale);
     const now = this.clock.now();
     if (oldest !== undefined && dueAt !== null && now >= dueAt) {
-      this.notifier.notifyQuickStart(queue.locale, oldest.nickname);
-      this.#lastPushAt.set(queue.locale, now);
+      this.notifier.notifyQuickStart(locale, oldest.nickname);
+      this.#lastPushAt.set(locale, now);
     }
-    this.#syncPush(queue);
+    this.#syncPush(locale);
   }
 
-  #pushDueAt(queue: MatchQueue): number | null {
-    const oldest = queue.waiting[0];
-    return pushDueAt(this.pushRule, oldest?.enqueuedAt ?? null, this.#lastPushAt.get(queue.locale) ?? null);
+  #pushDueAt(locale: Locale): number | null {
+    const oldest = this.#oldestWaiting(locale);
+    return pushDueAt(this.pushRule, oldest?.enqueuedAt ?? null, this.#lastPushAt.get(locale) ?? null);
   }
 
-  #queue(locale: Locale): MatchQueue {
-    let queue = this.#queues.get(locale);
-    if (queue === undefined) {
-      queue = new MatchQueue(locale, this.rule);
-      this.#queues.set(locale, queue);
+  /** The connected player of the locale who has waited longest, in any queue still waiting. */
+  #oldestWaiting(locale: Locale): Readonly<QueueEntry> | undefined {
+    let oldest: Readonly<QueueEntry> | undefined;
+    for (const queue of this.#queues.get(locale) ?? []) {
+      const first = queue.waiting[0];
+      if (first !== undefined && (oldest === undefined || first.enqueuedAt < oldest.enqueuedAt)) {
+        oldest = first;
+      }
     }
+    return oldest;
+  }
+
+  /** The oldest queue of the locale that is waiting and not full, or a new one. */
+  #openQueue(locale: Locale): MatchQueue {
+    const queues = this.#queues.get(locale) ?? [];
+    const open = queues.find((queue) => queue.isJoinable);
+    if (open !== undefined) {
+      return open;
+    }
+    const queue = new MatchQueue(`${locale}:${++this.#queueCount}`, locale, this.rule);
+    queues.push(queue);
+    this.#queues.set(locale, queues);
     return queue;
   }
 
   #queueOf(userId: UserId): MatchQueue | undefined {
-    for (const queue of this.#queues.values()) {
-      if (queue.has(userId)) {
-        return queue;
-      }
+    return this.#queueOfUser.get(userId);
+  }
+
+  #statusOf(userId: UserId): MatchingStatus {
+    const queue = this.#queueOf(userId);
+    if (queue === undefined) {
+      throw new Error(`user ${userId} is not queued`);
     }
-    return undefined;
+    return queue.statusOf(userId);
   }
 }
