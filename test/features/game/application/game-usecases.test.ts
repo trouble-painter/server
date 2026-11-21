@@ -42,7 +42,7 @@ const ONE_CODE: IdGenerator = {
   userId: () => {
     throw new Error('unused');
   },
-  roomCode: () => 'AAAAAA' as RoomCode,
+  roomCode: () => 'AAAA' as RoomCode,
 };
 
 describe('game use cases', () => {
@@ -236,7 +236,7 @@ describe('game use cases', () => {
       rooms,
       publisher,
       timer,
-      ids('QQQQQQ'),
+      ids('QQQQ'),
       TEST_OPTION,
       new FixedKeywords(),
       new FakeRandom(),
@@ -250,7 +250,7 @@ describe('game use cases', () => {
     // Nobody pressed start, so everyone with a token hears it.
     expect(pushed).toEqual([[Locale.En, ['token-d', 'token-f']]]);
     const quick = rooms.findByUser(E)!;
-    expect(quick).toMatchObject({ id: 'QQQQQQ', isQuickStart: true, hostId: D, locale: Locale.En });
+    expect(quick).toMatchObject({ id: 'QQQQ', isQuickStart: true, hostId: D, locale: Locale.En });
     expect(quick.phase.type).toBe(PhaseType.Ready);
     expect(publisher.events).toEqual([RoomEventType.PhaseChanged]);
 

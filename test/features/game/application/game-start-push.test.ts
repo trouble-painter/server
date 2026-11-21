@@ -12,7 +12,7 @@ const NICK = 'nick' as Nickname;
 
 function roomOfABC(): Room {
   const room = Room.create({
-    id: 'AAAAAA' as RoomCode,
+    id: 'AAAA' as RoomCode,
     locale: Locale.Ko,
     isQuickStart: false,
     option: TEST_OPTION,

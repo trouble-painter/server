@@ -84,7 +84,7 @@ describe('WebSocket rooms', () => {
       },
       players: [{ id: a.userId, nickname: '아보카도', color: 'RED', isConnected: true }],
     });
-    expect(room.id).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
+    expect(room.id).toMatch(/^[A-HJ-NP-Z2-9]{4}$/);
 
     const b = await user();
     const joined = await b.client.request('JOIN_ROOM', { roomId: room.id, nickname: 'B' });
@@ -123,7 +123,7 @@ describe('WebSocket rooms', () => {
 
   it('answers errors with the request type and a code', async () => {
     const a = await user();
-    expect(await a.client.request('JOIN_ROOM', { roomId: 'ZZZZZZ', nickname: 'A' })).toEqual({
+    expect(await a.client.request('JOIN_ROOM', { roomId: 'ZZZZ', nickname: 'A' })).toEqual({
       type: 'ERROR',
       data: { request: 'JOIN_ROOM', code: 'ROOM_NOT_FOUND' },
     });

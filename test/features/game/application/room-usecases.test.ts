@@ -66,7 +66,7 @@ describe('room use cases', () => {
     clock = new FakeClock();
     const membership = new Membership(rooms, publisher, scheduler, clock);
     queue = new RecordingQueue();
-    createRoom = new CreateRoom(rooms, membership, queue, new QueuedIds(['AAAAAA', 'AAAAAA', 'BBBBBB', 'CCCCCC']), TEST_OPTION);
+    createRoom = new CreateRoom(rooms, membership, queue, new QueuedIds(['AAAA', 'AAAA', 'BBBB', 'CCCC']), TEST_OPTION);
     joinRoom = new JoinRoom(rooms, membership, queue, publisher);
     leaveRoom = new LeaveRoom(rooms, membership, publisher, clock);
     connectUser = new ConnectUser(rooms, publisher, scheduler, clock);
@@ -84,8 +84,8 @@ describe('room use cases', () => {
   }
 
   it('skips a room code that is already taken', () => {
-    expect(createRoom.execute(A, NICK, Locale.Ko).id).toBe('AAAAAA');
-    expect(createRoom.execute(B, NICK, Locale.Ko).id).toBe('BBBBBB');
+    expect(createRoom.execute(A, NICK, Locale.Ko).id).toBe('AAAA');
+    expect(createRoom.execute(B, NICK, Locale.Ko).id).toBe('BBBB');
   });
 
   it('creating a room takes the user out of their waiting room', () => {
@@ -113,7 +113,7 @@ describe('room use cases', () => {
 
   it('a refused join keeps the user in their current room', () => {
     const own = createRoom.execute(A, NICK, Locale.Ko);
-    expect(errorCode(() => joinRoom.execute(A, 'ZZZZZZ', NICK))).toBe(GameErrorCode.RoomNotFound);
+    expect(errorCode(() => joinRoom.execute(A, 'ZZZZ', NICK))).toBe(GameErrorCode.RoomNotFound);
     expect(errorCode(() => joinRoom.execute(A, 'not a code', NICK))).toBe(GameErrorCode.RoomNotFound);
     expect(rooms.findByUser(A)).toBe(own);
   });

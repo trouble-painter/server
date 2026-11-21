@@ -30,7 +30,7 @@ function readyUp(room: Room): void {
 
 function roomOf(count: number): Room {
   const room = Room.create({
-    id: 'K7Q2ZP' as RoomCode,
+    id: 'K7Q2' as RoomCode,
     locale: Locale.Ko,
     isQuickStart: false,
     option: TEST_OPTION,
@@ -366,7 +366,7 @@ describe('Room game flow', () => {
   });
 
   it('a quick-start room keeps its rule', () => {
-    const room = Room.create({ id: 'K7Q2ZP' as RoomCode, locale: Locale.Ko, isQuickStart: true, option: TEST_OPTION, hostId: A, hostNickname: NICK });
+    const room = Room.create({ id: 'K7Q2' as RoomCode, locale: Locale.Ko, isQuickStart: true, option: TEST_OPTION, hostId: A, hostNickname: NICK });
     expect(codeOf(() => room.updateRule(A, { strokesPerTurn: 3, categoryIds: [] }, ['animal']))).toBe(GameErrorCode.InvalidRequest);
   });
 

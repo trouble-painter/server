@@ -15,7 +15,7 @@ const KEYWORDS = new FixedKeywords();
 
 function startedRoom(): Room {
   const room = Room.create({
-    id: 'K7Q2ZP' as RoomCode,
+    id: 'K7Q2' as RoomCode,
     locale: Locale.Ko,
     isQuickStart: false,
     option: TEST_OPTION,

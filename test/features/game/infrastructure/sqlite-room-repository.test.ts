@@ -60,8 +60,8 @@ describe('SqliteRoomRepository', () => {
 
   it('forgets a deleted room and follows players who left', () => {
     const repository = open();
-    const kept = waitingRoom('AAAAAA');
-    const gone = waitingRoom('BBBBBB');
+    const kept = waitingRoom('AAAA');
+    const gone = waitingRoom('BBBB');
     repository.save(gone);
     repository.save(kept);
     kept.removePlayer(B, clock.now());
@@ -69,20 +69,20 @@ describe('SqliteRoomRepository', () => {
     repository.delete(gone);
 
     const reopened = reopen(repository);
-    expect(reopened.all().map((r) => r.id)).toEqual(['AAAAAA']);
-    expect(reopened.findByUser(A)?.id).toBe('AAAAAA');
+    expect(reopened.all().map((r) => r.id)).toEqual(['AAAA']);
+    expect(reopened.findByUser(A)?.id).toBe('AAAA');
     expect(reopened.findByUser(B)).toBeNull();
   });
 
   it('drops rooms nobody has touched for the stale time', () => {
     const repository = open();
-    repository.save(waitingRoom('AAAAAA'));
+    repository.save(waitingRoom('AAAA'));
     clock.time += 1;
-    repository.save(waitingRoom('BBBBBB'));
+    repository.save(waitingRoom('BBBB'));
     clock.time += STALE_MS;
 
     const reopened = reopen(repository);
-    expect(reopened.all().map((r) => r.id)).toEqual(['BBBBBB']);
+    expect(reopened.all().map((r) => r.id)).toEqual(['BBBB']);
     const db = new DatabaseSync(path);
     expect(db.prepare('SELECT COUNT(*) AS n FROM rooms').get()).toEqual({ n: 1 });
     db.close();
@@ -90,29 +90,29 @@ describe('SqliteRoomRepository', () => {
 
   it('drops rows it cannot read and warns', () => {
     const repository = open();
-    repository.save(waitingRoom('AAAAAA'));
+    repository.save(waitingRoom('AAAA'));
     repository.close();
     opened.splice(0);
     const db = new DatabaseSync(path);
-    db.prepare('INSERT INTO rooms VALUES (?, ?, ?)').run('BBBBBB', '{"v":1}', clock.now());
-    db.prepare('INSERT INTO rooms VALUES (?, ?, ?)').run('CCCCCC', 'not json', clock.now());
+    db.prepare('INSERT INTO rooms VALUES (?, ?, ?)').run('BBBB', '{"v":1}', clock.now());
+    db.prepare('INSERT INTO rooms VALUES (?, ?, ?)').run('CCCC', 'not json', clock.now());
     db.close();
     const warn = vi.spyOn(logger, 'warn');
 
     const reopened = open();
-    expect(reopened.all().map((r) => r.id)).toEqual(['AAAAAA']);
+    expect(reopened.all().map((r) => r.id)).toEqual(['AAAA']);
     expect(warn).toHaveBeenCalledTimes(2);
   });
 
   it('reads a room saved before rules existed with the default rule', () => {
     const repository = open();
-    const room = waitingRoom('AAAAAA');
+    const room = waitingRoom('AAAA');
     repository.close();
     opened.splice(0);
     const { rule: _rule, option: { defaultStrokesPerTurn, ...option }, ...rest } = room.toSnapshot();
     const v1 = { ...rest, v: 1, option: { ...option, strokesPerTurn: defaultStrokesPerTurn } };
     const db = new DatabaseSync(path);
-    db.prepare('INSERT INTO rooms VALUES (?, ?, ?)').run('AAAAAA', JSON.stringify(v1), clock.now());
+    db.prepare('INSERT INTO rooms VALUES (?, ?, ?)').run('AAAA', JSON.stringify(v1), clock.now());
     db.close();
 
     const restored = open().get(room.id)!;

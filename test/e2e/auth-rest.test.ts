@@ -78,4 +78,10 @@ describe('auth REST', () => {
     expect(missing.statusCode).toBe(401);
     expect(refresh.statusCode).toBe(401);
   });
+
+  it('config answers the room code length without authentication', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/v1/config' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ roomCodeLength: 4 });
+  });
 });

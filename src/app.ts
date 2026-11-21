@@ -46,6 +46,7 @@ import { createMatchRule } from './features/matching/domain/match-queue.js';
 import { FcmPushNotifier, type PushText } from './features/matching/infrastructure/fcm-push-notifier.js';
 import { LogPushNotifier } from './features/matching/infrastructure/log-push-notifier.js';
 import { parseBearer } from './shared/adapters/http/bearer.js';
+import { registerConfigRoute } from './shared/adapters/http/config-route.js';
 import { WS_PATH } from './shared/adapters/ws/protocol.js';
 import { WsRouter } from './shared/adapters/ws/router.js';
 import { Locale } from './shared/domain/locale.js';
@@ -85,6 +86,8 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     maxAnswerLength: env.MAX_ANSWER_LENGTH,
     maxStrokesPerTurn: MAX_STROKES_PER_TURN,
   };
+
+  registerConfigRoute(http);
 
   const tokens = new JoseTokenService(env.JWT_SECRET, env.ACCESS_TOKEN_TTL_SEC);
   registerAuthRoutes(http, {

@@ -14,7 +14,7 @@ const CANVAS = { w: 300, h: 400 };
 export const T0 = 1_000_000;
 
 /** A fresh room with host A and players B and C, both ready, and the given code. */
-export function waitingRoom(id = 'K7Q2ZP'): Room {
+export function waitingRoom(id = 'K7Q2'): Room {
   const room = Room.create({
     id: id as RoomCode,
     locale: Locale.Ko,
