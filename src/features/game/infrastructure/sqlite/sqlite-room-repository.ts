@@ -1,4 +1,4 @@
-import { DatabaseSync, type StatementSync } from 'node:sqlite';
+import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import type { BaseLogger } from 'pino';
 import type { Clock } from '../../../../shared/application/ports/clock.js';
 import type { RoomCode } from '../../../../shared/domain/room-code.js';
@@ -7,9 +7,7 @@ import type { RoomRepository } from '../../application/ports/room-repository.js'
 import { Room } from '../../domain/room.js';
 import { MemoryRoomRepository } from '../memory/memory-room-repository.js';
 import { RoomSnapshotSchema } from './room-snapshot-schema.js';
-
-/** Raise when the table layout changes, and migrate from the previous one in {@link migrate}. */
-const SCHEMA_VERSION = 1;
+import { openDatabase } from './sqlite-database.js';
 
 interface RoomRow {
   room_id: string;
@@ -42,10 +40,7 @@ export class SqliteRoomRepository implements RoomRepository {
 
   /** Opens (or creates) the database and loads its rooms; rows untouched for `staleAfterMs` are dropped. */
   static open(path: string, clock: Clock, logger: Logger, staleAfterMs: number): SqliteRoomRepository {
-    const db = new DatabaseSync(path);
-    db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;');
-    migrate(db);
-    const repository = new SqliteRoomRepository(db, clock, logger);
+    const repository = new SqliteRoomRepository(openDatabase(path), clock, logger);
     repository.load(clock.now() - staleAfterMs);
     return repository;
   }
@@ -101,23 +96,6 @@ export class SqliteRoomRepository implements RoomRepository {
     } catch (error) {
       this.logger.error({ err: error, roomId }, 'failed to persist room');
     }
-  }
-}
-
-function migrate(db: DatabaseSync): void {
-  const { user_version: version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
-  if (version > SCHEMA_VERSION) {
-    throw new Error(`Room database schema ${version} is newer than this server (${SCHEMA_VERSION})`);
-  }
-  if (version < 1) {
-    db.exec(`
-      CREATE TABLE rooms (
-        room_id    TEXT PRIMARY KEY,
-        state      TEXT NOT NULL,
-        updated_at INTEGER NOT NULL
-      ) STRICT;
-      PRAGMA user_version = 1;
-    `);
   }
 }
 

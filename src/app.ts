@@ -8,10 +8,12 @@ import { connectionHandlers, registerRoomHandlers } from './features/game/adapte
 import { mapGameError } from './features/game/adapters/ws/wire.js';
 import { WsKickedNotifier } from './features/game/adapters/ws/ws-kicked-notifier.js';
 import { WsRoomEventPublisher } from './features/game/adapters/ws/ws-room-event-publisher.js';
+import { GameRecorder } from './features/game/application/game-recorder.js';
 import { GameStartPush } from './features/game/application/game-start-push.js';
 import { Membership } from './features/game/application/membership.js';
 import { PhaseTimer } from './features/game/application/phase-timer.js';
 import type { GameStartPushSender } from './features/game/application/ports/game-start-push-sender.js';
+import { RecordingRoomEventPublisher } from './features/game/application/recording-room-event-publisher.js';
 import { CleanupRooms } from './features/game/application/usecases/cleanup-rooms.js';
 import { ConnectUser } from './features/game/application/usecases/connect-user.js';
 import { ClearSketch } from './features/game/application/usecases/clear-sketch.js';
@@ -37,6 +39,7 @@ import { PLAYER_COUNT, type GameOption } from './features/game/domain/game-optio
 import { MAX_STROKES_PER_TURN } from './features/game/domain/game-rule.js';
 import type { Limits } from './features/game/domain/limits.js';
 import { JsonKeywordRepository } from './features/game/infrastructure/keywords/json-keyword-repository.js';
+import { SqliteGameHistoryRepository } from './features/game/infrastructure/sqlite/sqlite-game-history-repository.js';
 import { SqliteRoomRepository } from './features/game/infrastructure/sqlite/sqlite-room-repository.js';
 import { registerMatchingHandlers } from './features/matching/adapters/ws/matching-handlers.js';
 import { WsMatchingPublisher } from './features/matching/adapters/ws/ws-matching-publisher.js';
@@ -108,7 +111,12 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     },
     logger,
   );
-  const publisher = new WsRoomEventPublisher(ws, keywords);
+  const gameHistory = SqliteGameHistoryRepository.open(env.SQLITE_PATH, logger);
+  const publisher = new RecordingRoomEventPublisher(
+    new WsRoomEventPublisher(ws, keywords),
+    new GameRecorder(gameHistory, clock),
+    logger,
+  );
   const membership = new Membership(rooms, publisher, scheduler, clock);
   const timer = new PhaseTimer(rooms, publisher, scheduler, clock);
 
@@ -193,6 +201,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     ws.close();
     scheduler.cancelAll();
     rooms.close();
+    gameHistory.close();
     if (notifier instanceof FcmPushNotifier) {
       await notifier.close();
     }
