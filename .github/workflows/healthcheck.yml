@@ -1,0 +1,47 @@
+name: healthcheck
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: healthcheck
+  cancel-in-progress: false
+
+env:
+  # No dedicated /health route: the public config route answers 200 while the server is up.
+  HEALTHCHECK_URL: "https://trouble-painter-prod.devstory.co.kr/api/v1/config"
+  RETRIES: "3"
+  RETRY_DELAY_SECONDS: "3"
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          for i in $(seq 1 "$RETRIES"); do
+            code=$(curl -sS -o /tmp/body.txt -w '%{http_code}' --max-time 15 "$HEALTHCHECK_URL" || echo "000")
+            echo "attempt $i: HTTP $code"
+            if [ "$code" = "200" ]; then
+              echo "server is alive"
+              exit 0
+            fi
+            [ "$i" -lt "$RETRIES" ] && sleep "$RETRY_DELAY_SECONDS"
+          done
+          echo "last_code=$code" >> "$GITHUB_ENV"
+          echo "last_body=$(head -c 500 /tmp/body.txt | tr -d '\n\r"')" >> "$GITHUB_ENV"
+          exit 1
+
+      - name: Notify Slack on failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          text=$(printf ':rotating_light: *trouble-painter-server DOWN* — %s\nHTTP `%s` after %s attempts\n```%s```\n<%s|workflow run>' \
+            "$HEALTHCHECK_URL" "${last_code:-?}" "$RETRIES" "${last_body:-no response}" "$RUN_URL")
+          curl -sS -X POST -H 'Content-Type: application/json' \
+            --data "$(jq -n --arg text "$text" '{text: $text}')" \
+            "$SLACK_WEBHOOK_URL"
