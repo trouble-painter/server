@@ -1,0 +1,18 @@
+# deploy-monitoring.sh installs this into /etc/systemd/system/. Fix it here and deploy again.
+[Unit]
+Description=Grafana
+After=network-online.target prometheus.service
+Wants=network-online.target
+
+[Service]
+User=grafana
+WorkingDirectory=/opt/monitoring/grafana
+# grafana.env holds the settings; grafana-admin.env holds the admin login (kept in the private .env repo).
+EnvironmentFile=/etc/grafana/grafana.env
+EnvironmentFile=/etc/grafana/grafana-admin.env
+ExecStart=/opt/monitoring/grafana/bin/grafana server --homepath=/opt/monitoring/grafana
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

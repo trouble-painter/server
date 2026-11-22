@@ -9,4 +9,8 @@ deploy-dev:
 deploy-prod:
 	bash .env/deploy/deploy.sh prod
 
-.PHONY: run deploy-dev deploy-prod
+# Install or update Prometheus, node_exporter and Grafana on the server
+deploy-monitoring:
+	bash .env/deploy/deploy-monitoring.sh
+
+.PHONY: run deploy-dev deploy-prod deploy-monitoring
