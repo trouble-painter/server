@@ -1,4 +1,5 @@
 import { collectDefaultMetrics, Counter, Gauge, Registry } from 'prom-client';
+import type { BuildInfo } from '../build-info/build-info.js';
 import type { GameMetrics } from '../../../features/game/application/ports/game-metrics.js';
 import type { MatchingMetrics } from '../../../features/matching/application/ports/matching-metrics.js';
 
@@ -54,9 +55,9 @@ export class PrometheusMetrics implements GameMetrics, MatchingMetrics {
     });
   }
 
-  /** The conventional `build_info` gauge: constant 1, the version in a label. */
-  setBuildInfo(version: string): void {
-    new Gauge({ name: 'build_info', help: 'The commit this server was built from.', labelNames: ['version'], registers: [this.#registry] }).set({ version }, 1);
+  /** The conventional `build_info` gauge: constant 1, the release version and commit in labels. */
+  setBuildInfo({ version, commit }: BuildInfo): void {
+    new Gauge({ name: 'build_info', help: 'The version and commit this server was built from.', labelNames: ['version', 'commit'], registers: [this.#registry] }).set({ version, commit }, 1);
   }
 
   get contentType(): string {

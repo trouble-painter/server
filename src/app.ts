@@ -96,7 +96,6 @@ export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: Prometheu
 
   registerConfigRoute(http, serverVersion);
   registerDeveloperRoute(http, new FileDeveloperRegistry(env.DEV_UUIDS_PATH));
-  metrics.setBuildInfo(serverVersion);
 
   const tokens = new JoseTokenService(env.JWT_SECRET, env.ACCESS_TOKEN_TTL_SEC);
   registerAuthRoutes(http, {

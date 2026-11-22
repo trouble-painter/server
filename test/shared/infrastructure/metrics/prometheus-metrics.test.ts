@@ -15,8 +15,8 @@ describe('PrometheusMetrics', () => {
 
   it('exposes the server version as build_info', async () => {
     const metrics = new PrometheusMetrics();
-    metrics.setBuildInfo('abc1234');
-    expect(await metrics.render()).toContain('build_info{version="abc1234"} 1');
+    metrics.setBuildInfo({ version: '1.0.0', commit: 'abc1234' });
+    expect(await metrics.render()).toContain('build_info{version="1.0.0",commit="abc1234"} 1');
   });
 
   it('counts the players of each matching step', async () => {
