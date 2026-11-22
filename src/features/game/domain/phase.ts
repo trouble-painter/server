@@ -31,6 +31,15 @@ export interface Stroke {
   readonly t: readonly number[];
 }
 
+/** The points of stroke `index` from `from` on; the points before `from` stay. */
+export interface StrokePiece {
+  readonly index: number;
+  readonly from: number;
+  readonly points: Stroke;
+  /** Null when the sketch already has one */
+  readonly canvas: Canvas | null;
+}
+
 export interface Sketch {
   readonly userId: UserId;
   readonly canvas: Canvas;

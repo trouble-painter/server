@@ -95,9 +95,16 @@ export function registerGameHandlers(
   });
   router.register(
     ClientMessageType.DrawStroke,
-    z.object({ index: z.number().int().min(0), stroke: strokeSchema(limits.maxStrokePoints), canvas: CanvasSchema }),
-    (userId, { index, stroke, canvas }) => {
-      deps.drawStroke.execute(userId, index, stroke, canvas);
+    z
+      .object({
+        index: z.number().int().min(0),
+        from: z.number().int().min(0),
+        stroke: strokeSchema(limits.maxStrokePoints),
+        canvas: CanvasSchema.optional(),
+      })
+      .refine((data) => data.from > 0 || data.canvas !== undefined, 'a new stroke needs the canvas'),
+    (userId, { index, from, stroke, canvas }) => {
+      deps.drawStroke.execute(userId, { index, from, points: stroke, canvas: canvas ?? null });
       return null;
     },
   );

@@ -4,7 +4,7 @@ import { Room } from '../../src/features/game/domain/room.js';
 import { Locale } from '../../src/shared/domain/locale.js';
 import type { RoomCode } from '../../src/shared/domain/room-code.js';
 import type { UserId } from '../../src/shared/domain/user-id.js';
-import { TEST_OPTION } from './game.js';
+import { NO_POINT_LIMIT, TEST_OPTION, wholeStroke } from './game.js';
 
 const uid = (n: number) => n as UserId;
 export const [A, B, C] = [uid(1), uid(2), uid(3)];
@@ -35,7 +35,7 @@ function votingRoom(): Room {
   const room = waitingRoom();
   room.start(A, GAME, T0);
   room.expire(room.version, T0 + TEST_OPTION.readyMs);
-  room.drawStroke(B, 0, STROKE, CANVAS, room.deadline!);
+  room.drawStroke(B, wholeStroke(0, STROKE, CANVAS), NO_POINT_LIMIT, room.deadline!);
   while (room.phase.type === PhaseType.Drawing) {
     room.expire(room.version, room.deadline!);
   }
@@ -58,7 +58,7 @@ export function roomsInEveryPhase(): Record<PhaseType, Room> {
   drawing.expire(drawing.version, T0 + TEST_OPTION.readyMs);
   drawing.endTurn(B, T0 + 20_000);
   const drawFrom = (drawing.phase as Extract<Room['phase'], { type: PhaseType.Drawing }>).turn.drawFrom;
-  drawing.drawStroke(A, 0, STROKE, CANVAS, drawFrom);
+  drawing.drawStroke(A, wholeStroke(0, STROKE, CANVAS), NO_POINT_LIMIT, drawFrom);
 
   const vote = votingRoom();
 

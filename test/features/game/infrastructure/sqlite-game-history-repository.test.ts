@@ -9,6 +9,7 @@ import { SqliteGameHistoryRepository } from '../../../../src/features/game/infra
 import { SqliteRoomRepository } from '../../../../src/features/game/infrastructure/sqlite/sqlite-room-repository.js';
 import { Role } from '../../../../src/features/game/domain/role.js';
 import { FakeClock, RecordingMetrics } from '../../../support/fakes.js';
+import { NO_POINT_LIMIT, wholeStroke } from '../../../support/game.js';
 import { A, C, GAME, T0, waitingRoom } from '../../../support/rooms.js';
 
 interface GameRow {
@@ -56,7 +57,8 @@ describe('SqliteGameHistoryRepository', () => {
     clock.time = T0 + 5_000;
     recorder.record(room, room.expire(room.version, clock.now()));
     clock.time = (room.phase as { turn: { drawFrom: number } }).turn.drawFrom + 100;
-    recorder.record(room, room.drawStroke(GAME.turnOrder[0]!, 0, { x: [1, 2], y: [3, 4], t: [700, 20] }, { w: 300, h: 400 }, clock.now()));
+    const stroke = wholeStroke(0, { x: [1, 2], y: [3, 4], t: [700, 20] }, { w: 300, h: 400 });
+    recorder.record(room, room.drawStroke(GAME.turnOrder[0]!, stroke, NO_POINT_LIMIT, clock.now()));
     clock.time += 300;
     recorder.record(room, room.undoStroke(GAME.turnOrder[0]!, clock.now()));
     while (room.phase.type === 'drawing') {

@@ -167,7 +167,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: Prometheu
     setReady: new SetReady(rooms, publisher),
     kickPlayer: new KickPlayer(rooms, membership, new WsKickedNotifier(ws)),
     startGame: new StartGame(rooms, publisher, timer, keywords, random, clock, gameStartPush),
-    drawStroke: new DrawStroke(rooms, publisher, clock),
+    drawStroke: new DrawStroke(rooms, publisher, clock, limits.maxStrokePoints),
     clearSketch: new ClearSketch(rooms, publisher, clock),
     undoStroke: new UndoStroke(rooms, publisher, clock),
     endTurn: new EndTurn(rooms, publisher, timer, clock),

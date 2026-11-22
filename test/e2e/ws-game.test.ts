@@ -118,10 +118,10 @@ describe('WebSocket game', () => {
 
     // Each drawer draws one stroke and ends the turn; the others see the stroke, everyone sees TURN.
     for (const [i, drawer] of order.entries()) {
-      drawer.client.send('DRAW_STROKE', { index: 0, stroke: STROKE, canvas: CANVAS });
+      drawer.client.send('DRAW_STROKE', { index: 0, from: 0, stroke: STROKE, canvas: CANVAS });
       const watchers = players.filter((p) => p !== drawer);
       for (const message of await expectNext(watchers, 'STROKE')) {
-        expect(message.data).toEqual({ index: 0, stroke: STROKE, canvas: CANVAS });
+        expect(message.data).toEqual({ index: 0, from: 0, stroke: STROKE, canvas: CANVAS });
       }
       drawer.client.send('END_TURN');
       if (i < order.length - 1) {
@@ -166,13 +166,35 @@ describe('WebSocket game', () => {
     expect(again.data.room.players).toHaveLength(1);
   });
 
+  it('relays only the new points of a stroke and refuses a new stroke without its canvas', async () => {
+    await boot();
+    const players = await threePlayers();
+    const { order } = await startGame(players);
+    const drawer = order[0]!;
+    const watchers = players.filter((p) => p !== drawer);
+    drawer.client.send('DRAW_STROKE', { index: 0, from: 0, stroke: STROKE, canvas: CANVAS });
+    await expectNext(watchers, 'STROKE');
+
+    const next = { x: [5], y: [6], t: [16] };
+    drawer.client.send('DRAW_STROKE', { index: 0, from: 2, stroke: next });
+    for (const message of await expectNext(watchers, 'STROKE')) {
+      expect(message.data).toEqual({ index: 0, from: 2, stroke: next });
+    }
+    const noCanvas = await drawer.client.request('DRAW_STROKE', { index: 1, from: 0, stroke: STROKE });
+    expect(noCanvas.data.code).toBe('INVALID_REQUEST');
+
+    drawer.client.send('END_TURN');
+    const [turn] = await expectNext(players, 'TURN');
+    expect(turn!.data.sketch.strokes).toEqual([{ x: [1, 2, 5], y: [3, 4, 6], t: [0, 16, 16] }]);
+  });
+
   it('clearing a sketch tells the others and lets the drawer start again from index 0', async () => {
     await boot();
     const players = await threePlayers();
     const { order } = await startGame(players);
     const drawer = order[0]!;
     const watchers = players.filter((p) => p !== drawer);
-    drawer.client.send('DRAW_STROKE', { index: 0, stroke: STROKE, canvas: CANVAS });
+    drawer.client.send('DRAW_STROKE', { index: 0, from: 0, stroke: STROKE, canvas: CANVAS });
     await expectNext(watchers, 'STROKE');
 
     expect((await order[1]!.client.request('CLEAR_SKETCH')).data.code).toBe('NOT_YOUR_TURN');
@@ -192,7 +214,7 @@ describe('WebSocket game', () => {
     const { order } = await startGame(players);
     const drawer = order[0]!;
     const watchers = players.filter((p) => p !== drawer);
-    drawer.client.send('DRAW_STROKE', { index: 0, stroke: STROKE, canvas: CANVAS });
+    drawer.client.send('DRAW_STROKE', { index: 0, from: 0, stroke: STROKE, canvas: CANVAS });
     await expectNext(watchers, 'STROKE');
 
     expect((await order[1]!.client.request('UNDO_STROKE')).data.code).toBe('NOT_YOUR_TURN');
@@ -201,7 +223,7 @@ describe('WebSocket game', () => {
       expect(message.data).toEqual({});
     }
     // GAME_STROKES_PER_TURN is 1: the undone stroke gave its slot back.
-    drawer.client.send('DRAW_STROKE', { index: 0, stroke: STROKE, canvas: CANVAS });
+    drawer.client.send('DRAW_STROKE', { index: 0, from: 0, stroke: STROKE, canvas: CANVAS });
     await expectNext(watchers, 'STROKE');
     drawer.client.send('END_TURN');
     const [next] = await expectNext(players, 'TURN');
@@ -218,13 +240,13 @@ describe('WebSocket game', () => {
       const { order, mafia } = await startGame(players);
       const drawer = order[0]!;
       const watchers = players.filter((p) => p !== drawer);
-      drawer.client.send('DRAW_STROKE', { index: 0, stroke: { x: [1], y: [3], t: [900] }, canvas: CANVAS });
-      drawer.client.send('DRAW_STROKE', { index: 0, stroke: STROKE, canvas: CANVAS });
+      drawer.client.send('DRAW_STROKE', { index: 0, from: 0, stroke: { x: [1], y: [3], t: [900] }, canvas: CANVAS });
+      drawer.client.send('DRAW_STROKE', { index: 0, from: 0, stroke: STROKE, canvas: CANVAS });
       await expectNext(watchers, 'STROKE');
       await expectNext(watchers, 'STROKE');
       drawer.client.send('UNDO_STROKE');
       await expectNext(watchers, 'STROKE_UNDONE');
-      drawer.client.send('DRAW_STROKE', { index: 0, stroke: STROKE, canvas: CANVAS });
+      drawer.client.send('DRAW_STROKE', { index: 0, from: 0, stroke: STROKE, canvas: CANVAS });
       await expectNext(watchers, 'STROKE');
       for (const next of order) {
         next.client.send('END_TURN');
@@ -282,7 +304,7 @@ describe('WebSocket game', () => {
     const players = await threePlayers();
     const { mafia, order } = await startGame(players);
     const drawer = order[0]!;
-    drawer.client.send('DRAW_STROKE', { index: 0, stroke: STROKE, canvas: CANVAS });
+    drawer.client.send('DRAW_STROKE', { index: 0, from: 0, stroke: STROKE, canvas: CANVAS });
     const watchers = players.filter((p) => p !== drawer);
     await expectNext(watchers, 'STROKE');
 
@@ -323,9 +345,9 @@ describe('WebSocket game', () => {
     const { order } = await startGame(players);
     expect((await order[1]!.client.request('END_TURN')).data.code).toBe('NOT_YOUR_TURN');
     const points = Array.from({ length: 501 }, (_, i) => i);
-    const tooLong = await order[0]!.client.request('DRAW_STROKE', { index: 0, stroke: { x: points, y: points, t: points }, canvas: CANVAS });
+    const tooLong = await order[0]!.client.request('DRAW_STROKE', { index: 0, from: 0, stroke: { x: points, y: points, t: points }, canvas: CANVAS });
     expect(tooLong.data.code).toBe('INVALID_REQUEST');
-    const refused = await order[0]!.client.request('DRAW_STROKE', { index: 0, stroke: { ...STROKE, t: [0] }, canvas: CANVAS });
+    const refused = await order[0]!.client.request('DRAW_STROKE', { index: 0, from: 0, stroke: { ...STROKE, t: [0] }, canvas: CANVAS });
     expect(refused.data.code).toBe('INVALID_REQUEST');
     expect((await order[0]!.client.request('DRAW_STROKE', { index: 1, stroke: STROKE, canvas: CANVAS })).data.code).toBe(
       'INVALID_REQUEST',
@@ -363,7 +385,7 @@ describe('WebSocket game', () => {
       const players = await threePlayers();
       const { mafia, order } = await startGame(players);
       const [first, second] = order as [Player, Player, Player];
-      first.client.send('DRAW_STROKE', { index: 0, stroke: STROKE, canvas: CANVAS });
+      first.client.send('DRAW_STROKE', { index: 0, from: 0, stroke: STROKE, canvas: CANVAS });
       await expectNext(players.filter((p) => p !== first), 'STROKE');
       first.client.send('END_TURN');
       await expectNext(players, 'TURN');

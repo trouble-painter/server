@@ -84,19 +84,36 @@ describe('room presenter', () => {
     expect((roomMessage(room, A, KEYWORDS).data as any).room.phase).toMatchObject({ type: 'ANSWER', accusedId: 3, typing: '' });
   });
 
+  it('sends only the new points of a stroke, and the canvas only with its first piece', () => {
+    const room = startedRoom();
+    const event = {
+      type: RoomEventType.StrokeUpdated,
+      drawerId: B,
+      index: 1,
+      from: 2,
+      stroke: { x: [1, 2, 3], y: [4, 5, 6], t: [0, 10, 10] },
+      canvas: { w: 3, h: 4 },
+    } as const;
+    expect(eventMessage(room, event, A, KEYWORDS)).toEqual({
+      type: 'STROKE',
+      data: { index: 1, from: 2, stroke: { x: [3], y: [6], t: [10] } },
+    });
+  });
+
   it('does not echo a stroke, clear, undo, reaction or answer back to its sender', () => {
     const room = startedRoom();
     const stroke = {
       type: RoomEventType.StrokeUpdated,
       drawerId: B,
       index: 0,
+      from: 0,
       stroke: { x: [1], y: [2], t: [0] },
       canvas: { w: 3, h: 4 },
     } as const;
     expect(eventMessage(room, stroke, B, KEYWORDS)).toBeNull();
     expect(eventMessage(room, stroke, A, KEYWORDS)).toEqual({
       type: 'STROKE',
-      data: { index: 0, stroke: { x: [1], y: [2], t: [0] }, canvas: { w: 3, h: 4 } },
+      data: { index: 0, from: 0, stroke: { x: [1], y: [2], t: [0] }, canvas: { w: 3, h: 4 } },
     });
     const cleared = { type: RoomEventType.SketchCleared, drawerId: B } as const;
     expect(eventMessage(room, cleared, B, KEYWORDS)).toBeNull();

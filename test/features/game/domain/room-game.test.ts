@@ -10,7 +10,7 @@ import { Role } from '../../../../src/features/game/domain/role.js';
 import { Locale } from '../../../../src/shared/domain/locale.js';
 import type { RoomCode } from '../../../../src/shared/domain/room-code.js';
 import type { UserId } from '../../../../src/shared/domain/user-id.js';
-import { TEST_OPTION } from '../../../support/game.js';
+import { NO_POINT_LIMIT, TEST_LIMITS, TEST_OPTION, wholeStroke } from '../../../support/game.js';
 
 const NICK = 'nick' as Nickname;
 const uid = (n: number) => n as UserId;
@@ -114,26 +114,73 @@ describe('Room game flow', () => {
   it('accepts strokes from the drawer once drawing opens, replacing the last or appending the next', () => {
     const { room, now } = drawingRoom();
     const open = phase(room, PhaseType.Drawing).turn.drawFrom;
-    expect(codeOf(() => room.drawStroke(A, 0, STROKE, CANVAS, open))).toBe(GameErrorCode.NotYourTurn);
-    expect(codeOf(() => room.drawStroke(B, 0, STROKE, CANVAS, now))).toBe(GameErrorCode.InvalidPhase);
-    expect(codeOf(() => room.drawStroke(B, 1, STROKE, CANVAS, open))).toBe(GameErrorCode.InvalidRequest);
+    expect(codeOf(() => room.drawStroke(A, wholeStroke(0, STROKE, CANVAS), NO_POINT_LIMIT, open))).toBe(GameErrorCode.NotYourTurn);
+    expect(codeOf(() => room.drawStroke(B, wholeStroke(0, STROKE, CANVAS), NO_POINT_LIMIT, now))).toBe(GameErrorCode.InvalidPhase);
+    expect(codeOf(() => room.drawStroke(B, wholeStroke(1, STROKE, CANVAS), NO_POINT_LIMIT, open))).toBe(GameErrorCode.InvalidRequest);
 
-    expect(room.drawStroke(B, 0, STROKE, CANVAS, open)).toEqual([
-      { type: RoomEventType.StrokeUpdated, drawerId: B, index: 0, stroke: STROKE, canvas: CANVAS },
+    expect(room.drawStroke(B, wholeStroke(0, STROKE, CANVAS), NO_POINT_LIMIT, open)).toEqual([
+      { type: RoomEventType.StrokeUpdated, drawerId: B, index: 0, from: 0, stroke: STROKE, canvas: CANVAS },
     ]);
     const longer = { x: [1, 2, 3], y: [3, 4, 5], t: [0, 10, 10] };
-    room.drawStroke(B, 0, longer, CANVAS, open);
-    room.drawStroke(B, 1, STROKE, CANVAS, open);
+    room.drawStroke(B, wholeStroke(0, longer, CANVAS), NO_POINT_LIMIT, open);
+    room.drawStroke(B, wholeStroke(1, STROKE, CANVAS), NO_POINT_LIMIT, open);
     expect(phase(room, PhaseType.Drawing).current).toEqual({ userId: B, canvas: CANVAS, strokes: [longer, STROKE] });
     // strokesPerTurn is 2 in TEST_OPTION.
-    expect(codeOf(() => room.drawStroke(B, 2, STROKE, CANVAS, open))).toBe(GameErrorCode.InvalidRequest);
+    expect(codeOf(() => room.drawStroke(B, wholeStroke(2, STROKE, CANVAS), NO_POINT_LIMIT, open))).toBe(GameErrorCode.InvalidRequest);
+  });
+
+  it('writes a piece over the last stroke from its `from`, keeping the points before it', () => {
+    const { room } = drawingRoom();
+    const open = phase(room, PhaseType.Drawing).turn.drawFrom;
+    const piece = (index: number, from: number, points: Stroke) => ({ index, from, points, canvas: null });
+    room.drawStroke(B, wholeStroke(0, STROKE, CANVAS), NO_POINT_LIMIT, open);
+
+    // Appends after the last point.
+    const appended = room.drawStroke(B, piece(0, 2, { x: [5], y: [6], t: [10] }), NO_POINT_LIMIT, open);
+    const whole = { x: [1, 2, 5], y: [3, 4, 6], t: [0, 10, 10] };
+    expect(appended).toEqual([{ type: RoomEventType.StrokeUpdated, drawerId: B, index: 0, from: 2, stroke: whole, canvas: CANVAS }]);
+
+    // Rewrites the last point, which followed the pen.
+    room.drawStroke(B, piece(0, 2, { x: [7, 8], y: [7, 8], t: [20, 5] }), NO_POINT_LIMIT, open);
+    expect(phase(room, PhaseType.Drawing).current?.strokes).toEqual([{ x: [1, 2, 7, 8], y: [3, 4, 7, 8], t: [0, 10, 20, 5] }]);
+
+    // A gap, a finished stroke, or a new stroke that does not start at 0 is refused.
+    expect(codeOf(() => room.drawStroke(B, piece(0, 5, STROKE), NO_POINT_LIMIT, open))).toBe(GameErrorCode.InvalidRequest);
+    room.drawStroke(B, wholeStroke(1, STROKE, CANVAS), NO_POINT_LIMIT, open);
+    expect(codeOf(() => room.drawStroke(B, piece(0, 4, STROKE), NO_POINT_LIMIT, open))).toBe(GameErrorCode.InvalidRequest);
+    room.undoStroke(B, open);
+    expect(codeOf(() => room.drawStroke(B, piece(1, 1, STROKE), NO_POINT_LIMIT, open))).toBe(GameErrorCode.InvalidRequest);
+  });
+
+  it('bounds the whole stroke by the points limit, not only the piece', () => {
+    const { room } = drawingRoom();
+    const open = phase(room, PhaseType.Drawing).turn.drawFrom;
+    const max = TEST_LIMITS.maxStrokePoints;
+    room.drawStroke(B, wholeStroke(0, STROKE, CANVAS), max, open);
+    const piece = (from: number, n: number) => ({
+      index: 0,
+      from,
+      points: { x: Array(n).fill(1), y: Array(n).fill(1), t: Array(n).fill(1) },
+      canvas: null,
+    });
+    room.drawStroke(B, piece(2, max - 2), max, open);
+    expect(codeOf(() => room.drawStroke(B, piece(max, 1), max, open))).toBe(GameErrorCode.InvalidRequest);
+    expect(phase(room, PhaseType.Drawing).current?.strokes[0]?.x).toHaveLength(max);
+  });
+
+  it('keeps the canvas of the sketch when a piece comes without one', () => {
+    const { room } = drawingRoom();
+    const open = phase(room, PhaseType.Drawing).turn.drawFrom;
+    room.drawStroke(B, wholeStroke(0, STROKE, CANVAS), NO_POINT_LIMIT, open);
+    room.drawStroke(B, { index: 1, from: 0, points: STROKE, canvas: null }, NO_POINT_LIMIT, open);
+    expect(phase(room, PhaseType.Drawing).current?.canvas).toEqual(CANVAS);
   });
 
   it('the drawer clears the sketch once drawing opens, and draws again from index 0', () => {
     const { room, now } = drawingRoom();
     const open = phase(room, PhaseType.Drawing).turn.drawFrom;
-    room.drawStroke(B, 0, STROKE, CANVAS, open);
-    room.drawStroke(B, 1, STROKE, CANVAS, open);
+    room.drawStroke(B, wholeStroke(0, STROKE, CANVAS), NO_POINT_LIMIT, open);
+    room.drawStroke(B, wholeStroke(1, STROKE, CANVAS), NO_POINT_LIMIT, open);
     expect(codeOf(() => room.clearSketch(A, open))).toBe(GameErrorCode.NotYourTurn);
     expect(codeOf(() => room.clearSketch(B, now))).toBe(GameErrorCode.InvalidPhase);
     const version = room.version;
@@ -141,8 +188,8 @@ describe('Room game flow', () => {
     expect(room.clearSketch(B, open)).toEqual([{ type: RoomEventType.SketchCleared, drawerId: B }]);
     expect(phase(room, PhaseType.Drawing).current).toBeNull();
     expect(room.version).toBe(version);
-    expect(codeOf(() => room.drawStroke(B, 1, STROKE, CANVAS, open))).toBe(GameErrorCode.InvalidRequest);
-    room.drawStroke(B, 0, STROKE, CANVAS, open);
+    expect(codeOf(() => room.drawStroke(B, wholeStroke(1, STROKE, CANVAS), NO_POINT_LIMIT, open))).toBe(GameErrorCode.InvalidRequest);
+    room.drawStroke(B, wholeStroke(0, STROKE, CANVAS), NO_POINT_LIMIT, open);
     expect(phase(room, PhaseType.Drawing).current).toEqual({ userId: B, canvas: CANVAS, strokes: [STROKE] });
     expect(codeOf(() => roomOf(3).clearSketch(A, open))).toBe(GameErrorCode.InvalidPhase);
   });
@@ -152,8 +199,8 @@ describe('Room game flow', () => {
     const open = phase(room, PhaseType.Drawing).turn.drawFrom;
     expect(codeOf(() => room.undoStroke(B, open))).toBe(GameErrorCode.InvalidRequest);
     const first = { x: [1, 2, 3], y: [3, 4, 5], t: [0, 10, 10] };
-    room.drawStroke(B, 0, first, CANVAS, open);
-    room.drawStroke(B, 1, STROKE, CANVAS, open);
+    room.drawStroke(B, wholeStroke(0, first, CANVAS), NO_POINT_LIMIT, open);
+    room.drawStroke(B, wholeStroke(1, STROKE, CANVAS), NO_POINT_LIMIT, open);
     expect(codeOf(() => room.undoStroke(A, open))).toBe(GameErrorCode.NotYourTurn);
     expect(codeOf(() => room.undoStroke(B, now))).toBe(GameErrorCode.InvalidPhase);
     const version = room.version;
@@ -161,7 +208,7 @@ describe('Room game flow', () => {
     expect(room.undoStroke(B, open)).toEqual([{ type: RoomEventType.StrokeUndone, drawerId: B }]);
     expect(phase(room, PhaseType.Drawing).current).toEqual({ userId: B, canvas: CANVAS, strokes: [first] });
     expect(room.version).toBe(version);
-    room.drawStroke(B, 1, STROKE, CANVAS, open);
+    room.drawStroke(B, wholeStroke(1, STROKE, CANVAS), NO_POINT_LIMIT, open);
     expect(phase(room, PhaseType.Drawing).current).toEqual({ userId: B, canvas: CANVAS, strokes: [first, STROKE] });
     room.undoStroke(B, open);
     room.undoStroke(B, open);
@@ -172,7 +219,7 @@ describe('Room game flow', () => {
   it('ending a turn files the sketch and hands the turn to the next drawer', () => {
     const { room } = drawingRoom();
     const open = phase(room, PhaseType.Drawing).turn.drawFrom;
-    room.drawStroke(B, 0, STROKE, CANVAS, open);
+    room.drawStroke(B, wholeStroke(0, STROKE, CANVAS), NO_POINT_LIMIT, open);
     expect(codeOf(() => room.endTurn(A, open))).toBe(GameErrorCode.NotYourTurn);
     const version = room.version;
     const events = room.endTurn(B, open + 1);
@@ -377,8 +424,8 @@ describe('Room game flow', () => {
     limited.start(A, GAME, T0);
     limited.expire(limited.version, T0 + TEST_OPTION.readyMs);
     const open = phase(limited, PhaseType.Drawing).turn.drawFrom;
-    limited.drawStroke(B, 0, STROKE, CANVAS, open);
-    expect(codeOf(() => limited.drawStroke(B, 1, STROKE, CANVAS, open))).toBe(GameErrorCode.InvalidRequest);
+    limited.drawStroke(B, wholeStroke(0, STROKE, CANVAS), NO_POINT_LIMIT, open);
+    expect(codeOf(() => limited.drawStroke(B, wholeStroke(1, STROKE, CANVAS), NO_POINT_LIMIT, open))).toBe(GameErrorCode.InvalidRequest);
 
     const unlimited = roomOf(3);
     unlimited.updateRule(A, { strokesPerTurn: null, categoryIds: [], keywordLocale: Locale.Ko }, ['animal']);
@@ -386,7 +433,7 @@ describe('Room game flow', () => {
     unlimited.start(A, GAME, T0);
     unlimited.expire(unlimited.version, T0 + TEST_OPTION.readyMs);
     for (let index = 0; index < 20; index++) {
-      unlimited.drawStroke(B, index, STROKE, CANVAS, open);
+      unlimited.drawStroke(B, wholeStroke(index, STROKE, CANVAS), NO_POINT_LIMIT, open);
     }
     expect(phase(unlimited, PhaseType.Drawing).current?.strokes).toHaveLength(20);
   });

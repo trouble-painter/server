@@ -25,6 +25,9 @@ export type RoomEvent =
       readonly type: RoomEventType.StrokeUpdated;
       readonly drawerId: UserId;
       readonly index: number;
+      /** The points of `stroke` from here on are new. */
+      readonly from: number;
+      /** The whole stroke so far */
       readonly stroke: Stroke;
       readonly canvas: Canvas;
     }

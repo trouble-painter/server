@@ -6,7 +6,16 @@ import type { GameOption } from './game-option.js';
 import { assertValidRule, defaultRule, type GameRule } from './game-rule.js';
 import { isCorrectGuess } from './keyword.js';
 import type { Nickname } from './nickname.js';
-import { PhaseType, type Canvas, type Game, type Phase, type Result, type Sketch, type Stroke } from './phase.js';
+import {
+  PhaseType,
+  type Canvas,
+  type Game,
+  type Phase,
+  type Result,
+  type Sketch,
+  type Stroke,
+  type StrokePiece,
+} from './phase.js';
 import { PLAYER_COLORS, type PlayerColor } from './player-color.js';
 import type { Reaction } from './reaction.js';
 import { RoomEventType, type RoomEvent } from './room-event.js';
@@ -27,6 +36,7 @@ export interface Player {
 const PLAYERS_CHANGED: RoomEvent = { type: RoomEventType.PlayersChanged };
 const PHASE_CHANGED: RoomEvent = { type: RoomEventType.PhaseChanged };
 const RULE_CHANGED: RoomEvent = { type: RoomEventType.RuleChanged };
+const EMPTY_STROKE: Stroke = { x: [], y: [], t: [] };
 
 type PhaseOf<T extends PhaseType> = Extract<Phase, { type: T }>;
 
@@ -282,21 +292,38 @@ export class Room {
     return [PHASE_CHANGED];
   }
 
-  /** `index` replaces the last stroke or appends the next one. */
-  drawStroke(userId: UserId, index: number, stroke: Stroke, canvas: Canvas, now: number): RoomEvent[] {
+  /**
+   * Writes `piece` over the last stroke, or starts the next one with `from` 0.
+   * `maxPoints` bounds the whole stroke, not only the piece.
+   */
+  drawStroke(userId: UserId, piece: StrokePiece, maxPoints: number, now: number): RoomEvent[] {
     const phase = this.#drawerPhase(userId);
     if (now < phase.turn.drawFrom) {
       throw new GameError(GameErrorCode.InvalidPhase);
     }
+    const { index, from, points } = piece;
     const strokes = phase.current?.strokes ?? [];
-    const isReplace = index === strokes.length - 1;
+    const kept = index === strokes.length ? EMPTY_STROKE : strokes[index];
     const maxStrokes = this.#rule.strokesPerTurn;
-    if ((!isReplace && index !== strokes.length) || (maxStrokes !== null && index >= maxStrokes)) {
+    const canvas = piece.canvas ?? phase.current?.canvas;
+    if (
+      kept === undefined ||
+      index < strokes.length - 1 ||
+      (maxStrokes !== null && index >= maxStrokes) ||
+      from > kept.x.length ||
+      from + points.x.length > maxPoints ||
+      canvas === undefined
+    ) {
       throw new GameError(GameErrorCode.InvalidRequest);
     }
-    const next = isReplace ? strokes.with(index, stroke) : [...strokes, stroke];
+    const stroke: Stroke = {
+      x: [...kept.x.slice(0, from), ...points.x],
+      y: [...kept.y.slice(0, from), ...points.y],
+      t: [...kept.t.slice(0, from), ...points.t],
+    };
+    const next = index === strokes.length ? [...strokes, stroke] : strokes.with(index, stroke);
     this.#phase = { ...phase, current: { userId, canvas, strokes: next } };
-    return [{ type: RoomEventType.StrokeUpdated, drawerId: userId, index, stroke, canvas }];
+    return [{ type: RoomEventType.StrokeUpdated, drawerId: userId, index, from, stroke, canvas }];
   }
 
   /** Drops every stroke of this turn, so drawing starts again from index 0. */

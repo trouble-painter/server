@@ -8,7 +8,7 @@ import type { RoomEvent } from '../../../../src/features/game/domain/room-event.
 import type { Room } from '../../../../src/features/game/domain/room.js';
 import { Role } from '../../../../src/features/game/domain/role.js';
 import { FakeClock, RecordingMetrics } from '../../../support/fakes.js';
-import { TEST_OPTION } from '../../../support/game.js';
+import { NO_POINT_LIMIT, TEST_OPTION, wholeStroke } from '../../../support/game.js';
 import { A, B, C, GAME, T0, waitingRoom } from '../../../support/rooms.js';
 
 const CANVAS = { w: 300, h: 400 };
@@ -132,10 +132,10 @@ describe('GameRecorder', () => {
   it('keeps the last version of a stroke as one entry timed from its first to its last update', () => {
     startGame();
     const drawFrom = (room.phase as { turn: { drawFrom: number } }).turn.drawFrom - T0;
-    at(drawFrom + 100, () => room.drawStroke(B, 0, stroke(2), CANVAS, clock.now()));
-    at(drawFrom + 150, () => room.drawStroke(B, 0, stroke(4), CANVAS, clock.now()));
-    at(drawFrom + 400, () => room.drawStroke(B, 0, stroke(8), CANVAS, clock.now()));
-    at(drawFrom + 900, () => room.drawStroke(B, 1, stroke(3), CANVAS, clock.now()));
+    at(drawFrom + 100, () => room.drawStroke(B, wholeStroke(0, stroke(2), CANVAS), NO_POINT_LIMIT, clock.now()));
+    at(drawFrom + 150, () => room.drawStroke(B, wholeStroke(0, stroke(4), CANVAS), NO_POINT_LIMIT, clock.now()));
+    at(drawFrom + 400, () => room.drawStroke(B, wholeStroke(0, stroke(8), CANVAS), NO_POINT_LIMIT, clock.now()));
+    at(drawFrom + 900, () => room.drawStroke(B, wholeStroke(1, stroke(3), CANVAS), NO_POINT_LIMIT, clock.now()));
     finish();
 
     const strokes = savedEvents().filter((e) => e.type === HistoryEventType.Stroke);
@@ -155,9 +155,9 @@ describe('GameRecorder', () => {
   it('records an undo and the stroke drawn again at the same index', () => {
     startGame();
     const drawFrom = (room.phase as { turn: { drawFrom: number } }).turn.drawFrom - T0;
-    at(drawFrom + 100, () => room.drawStroke(B, 0, stroke(3), CANVAS, clock.now()));
+    at(drawFrom + 100, () => room.drawStroke(B, wholeStroke(0, stroke(3), CANVAS), NO_POINT_LIMIT, clock.now()));
     at(drawFrom + 500, () => room.undoStroke(B, clock.now()));
-    at(drawFrom + 800, () => room.drawStroke(B, 0, stroke(5), CANVAS, clock.now()));
+    at(drawFrom + 800, () => room.drawStroke(B, wholeStroke(0, stroke(5), CANVAS), NO_POINT_LIMIT, clock.now()));
     at(drawFrom + 1_200, () => room.clearSketch(B, clock.now()));
     finish();
 
@@ -175,7 +175,7 @@ describe('GameRecorder', () => {
   it('keeps events in the order they happened, flushing a stroke before the next event', () => {
     startGame();
     const drawFrom = (room.phase as { turn: { drawFrom: number } }).turn.drawFrom - T0;
-    at(drawFrom + 100, () => room.drawStroke(B, 0, stroke(3), CANVAS, clock.now()));
+    at(drawFrom + 100, () => room.drawStroke(B, wholeStroke(0, stroke(3), CANVAS), NO_POINT_LIMIT, clock.now()));
     at(drawFrom + 200, () => room.react(A, Reaction.Heart));
     finish();
 

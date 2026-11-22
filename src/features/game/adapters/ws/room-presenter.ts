@@ -155,8 +155,9 @@ function sketchView(sketch: Sketch) {
   };
 }
 
-function strokeView(stroke: Stroke) {
-  return { x: [...stroke.x], y: [...stroke.y], t: [...stroke.t] };
+/** The points from `from` on */
+function strokeView(stroke: Stroke, from = 0) {
+  return { x: stroke.x.slice(from), y: stroke.y.slice(from), t: stroke.t.slice(from) };
 }
 
 function votesView(votes: ReadonlyMap<UserId, UserId>): Record<string, UserId> {
@@ -225,7 +226,12 @@ export function eventMessage(room: Room, event: RoomEvent, viewer: UserId, keywo
         ? null
         : {
             type: ServerMessageType.Stroke,
-            data: { index: event.index, stroke: strokeView(event.stroke), canvas: { w: event.canvas.w, h: event.canvas.h } },
+            data: {
+              index: event.index,
+              from: event.from,
+              stroke: strokeView(event.stroke, event.from),
+              ...(event.from === 0 && { canvas: { w: event.canvas.w, h: event.canvas.h } }),
+            },
           };
     case RoomEventType.SketchCleared:
       return viewer === event.drawerId ? null : { type: ServerMessageType.SketchCleared, data: {} };
