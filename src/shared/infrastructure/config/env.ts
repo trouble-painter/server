@@ -41,6 +41,8 @@ function pushTextShape<P extends PushTextPrefix>(prefix: P): Record<PushTextKey<
 const EnvSchema = z.object({
   APP_ENV: AppEnvSchema,
   PORT: z.coerce.number().int().min(1).max(65535),
+  /** Served on loopback only; Prometheus reads it from the same machine. */
+  METRICS_PORT: z.coerce.number().int().min(1).max(65535),
   JWT_SECRET: z.string().min(32),
   ACCESS_TOKEN_TTL_SEC: positiveInt,
   WS_PING_INTERVAL_MS: positiveInt,

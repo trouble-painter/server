@@ -56,6 +56,10 @@ export class WsServer implements SessionGateway {
     this.pingTimer = setInterval(() => this.ping(), this.options.pingIntervalMs);
   }
 
+  get connectionCount(): number {
+    return this.connections.size;
+  }
+
   send(userId: UserId, message: ServerMessage): void {
     const connection = this.connections.get(userId);
     if (connection?.ws.readyState === WebSocket.OPEN) {

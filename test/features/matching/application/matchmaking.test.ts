@@ -11,7 +11,7 @@ import {
 import type { MatchingStatus } from '../../../../src/features/matching/domain/match-queue.js';
 import { Locale } from '../../../../src/shared/domain/locale.js';
 import type { UserId } from '../../../../src/shared/domain/user-id.js';
-import { FakeClock, FakeScheduler } from '../../../support/fakes.js';
+import { FakeClock, FakeScheduler, RecordingMetrics } from '../../../support/fakes.js';
 
 const RULE = { min: 3, target: 6, waitMs: 10_000, acceptMs: 5_000 };
 const PUSH = { waitMs: 5_000, cooldownMs: 300_000 };
@@ -32,6 +32,7 @@ describe('Matchmaking', () => {
   let declined: UserId[];
   let matchFound: [Locale, UserId[]][];
   let released: UserId[];
+  let metrics: RecordingMetrics;
   let matchmaking: Matchmaking;
 
   beforeEach(() => {
@@ -43,6 +44,7 @@ describe('Matchmaking', () => {
     declined = [];
     matchFound = [];
     released = [];
+    metrics = new RecordingMetrics();
     matchmaking = new Matchmaking(
       RULE,
       PUSH,
@@ -61,6 +63,7 @@ describe('Matchmaking', () => {
       { notifyMatchFound: (locale, userIds) => matchFound.push([locale, [...userIds]]) },
       scheduler,
       clock,
+      metrics,
     );
   });
 
@@ -143,6 +146,25 @@ describe('Matchmaking', () => {
     expect(started).toEqual([[Locale.Ko, [1, 2, 3].map(uid)]]);
     expect(declined).toEqual([uid(4)]);
     expect(matchmaking.connect(uid(4))).toBeNull();
+  });
+
+  it('counts the players found, accepted and declined', () => {
+    join(1, 2, 3, 4);
+    clock.time += RULE.waitMs;
+    scheduler.fire(matchDeadlineKey(Q1));
+    for (const n of [1, 2, 3]) {
+      matchmaking.accept(uid(n));
+    }
+    clock.time += RULE.acceptMs;
+    scheduler.fire(readyKey(Q1));
+    expect(metrics.players).toEqual({ found: 4, accepted: 3, declined: 1 });
+  });
+
+  it('counts the queued players until they leave', () => {
+    join(1, 2);
+    expect(matchmaking.queuedCount).toBe(2);
+    matchmaking.release(uid(1));
+    expect(matchmaking.queuedCount).toBe(1);
   });
 
   it('requeues those who accepted and sends home those who did not when fewer than min accepted', () => {

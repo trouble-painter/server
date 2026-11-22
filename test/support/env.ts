@@ -5,6 +5,7 @@ import { KEYWORDS_FIXTURE_DIR } from './game.js';
 export const TEST_ENV_SOURCE: Readonly<Record<string, string>> = {
   APP_ENV: 'dev',
   PORT: '8080',
+  METRICS_PORT: '9080',
   JWT_SECRET: 'x'.repeat(32),
   ACCESS_TOKEN_TTL_SEC: '3600',
   WS_PING_INTERVAL_MS: '25000',

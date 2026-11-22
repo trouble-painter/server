@@ -6,6 +6,7 @@ import { PhaseType, type Canvas, type Stroke, type Turn } from '../domain/phase.
 import { RoomEventType, type RoomEvent } from '../domain/room-event.js';
 import type { Room } from '../domain/room.js';
 import type { GameHistoryRepository } from './ports/game-history-repository.js';
+import type { GameMetrics } from './ports/game-metrics.js';
 
 /** The stroke being drawn: it is kept as one entry until some other event shows it is finished. */
 interface PendingStroke {
@@ -95,6 +96,7 @@ export class GameRecorder {
   constructor(
     private readonly history: GameHistoryRepository,
     private readonly clock: Clock,
+    private readonly metrics: GameMetrics,
   ) {}
 
   /** Call with what the room just raised, after the room has changed. */
@@ -182,6 +184,7 @@ export class GameRecorder {
           meta: recording.meta,
           events: recording.events(),
         });
+        this.metrics.gameEnded(phase.result.winner, room.isQuickStart);
         return;
       case PhaseType.Wait:
         return;

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { testEnv } from '../support/env.js';
 import { Client, type Message } from '../support/ws-client.js';
+import { PrometheusMetrics } from '../../src/shared/infrastructure/metrics/prometheus-metrics.js';
 
 /** A quick match and a game that runs on short deadlines alone. */
 const FAST = {
@@ -35,7 +36,7 @@ describe('WebSocket quick start', () => {
   });
 
   async function boot(): Promise<void> {
-    app = buildApp(testEnv(FAST), pino({ enabled: false }));
+    app = buildApp(testEnv(FAST), pino({ enabled: false }), new PrometheusMetrics());
     const address = await app.listen({ host: '127.0.0.1', port: 0 });
     url = `${address.replace('http', 'ws')}/ws`;
   }

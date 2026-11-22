@@ -6,6 +6,7 @@ import type { Nickname } from '../../game/domain/nickname.js';
 import { MatchQueue, type MatchingStatus, type MatchRule, type QueueEntry } from '../domain/match-queue.js';
 import { pushDueAt, type PushRule } from '../domain/push-rule.js';
 import type { MatchFoundPush } from './ports/match-found-push.js';
+import type { MatchingMetrics } from './ports/matching-metrics.js';
 import type { MatchingPublisher } from './ports/matching-publisher.js';
 import type { PushNotifier } from './ports/push-notifier.js';
 import type { QuickStartRooms } from './ports/quick-start-rooms.js';
@@ -52,7 +53,13 @@ export class Matchmaking {
     private readonly matchFoundPush: MatchFoundPush,
     private readonly scheduler: Scheduler,
     private readonly clock: Clock,
+    private readonly metrics: MatchingMetrics,
   ) {}
+
+  /** Players in a queue, waiting or in the accept step. */
+  get queuedCount(): number {
+    return this.#queueOfUser.size;
+  }
 
   /**
    * Leaves a waiting room or another locale's queue first; someone already in a queue of this
@@ -160,6 +167,7 @@ export class Matchmaking {
   #match(queue: MatchQueue): boolean {
     const matched = queue.settle(this.clock.now());
     if (matched.length > 0) {
+      this.metrics.found(matched.length);
       this.matchFoundPush.notifyMatchFound(
         queue.locale,
         matched.map((e) => e.userId),
@@ -178,6 +186,8 @@ export class Matchmaking {
   #finishCheck(queue: MatchQueue): void {
     this.scheduler.cancel(readyKey(queue.id));
     const { accepted, declined } = queue.resolve();
+    this.metrics.accepted(accepted.length);
+    this.metrics.declined(declined.length);
     for (const entry of declined) {
       this.scheduler.cancel(queueLeaveKey(entry.userId));
       this.#queueOfUser.delete(entry.userId);

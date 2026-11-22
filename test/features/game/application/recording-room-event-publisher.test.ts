@@ -5,7 +5,7 @@ import { RecordingRoomEventPublisher } from '../../../../src/features/game/appli
 import type { RoomEvent } from '../../../../src/features/game/domain/room-event.js';
 import { RoomEventType } from '../../../../src/features/game/domain/room-event.js';
 import type { Room } from '../../../../src/features/game/domain/room.js';
-import { FakeClock } from '../../../support/fakes.js';
+import { FakeClock, RecordingMetrics } from '../../../support/fakes.js';
 import { A, GAME, T0, waitingRoom } from '../../../support/rooms.js';
 
 describe('RecordingRoomEventPublisher', () => {
@@ -19,6 +19,7 @@ describe('RecordingRoomEventPublisher', () => {
         },
       },
       new FakeClock(T0),
+      new RecordingMetrics(),
     );
     const logged: object[] = [];
     const publisher = new RecordingRoomEventPublisher(inner, broken, { error: (context) => logged.push(context) });

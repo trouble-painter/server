@@ -7,7 +7,7 @@ import { Reaction } from '../../../../src/features/game/domain/reaction.js';
 import type { RoomEvent } from '../../../../src/features/game/domain/room-event.js';
 import type { Room } from '../../../../src/features/game/domain/room.js';
 import { Role } from '../../../../src/features/game/domain/role.js';
-import { FakeClock } from '../../../support/fakes.js';
+import { FakeClock, RecordingMetrics } from '../../../support/fakes.js';
 import { TEST_OPTION } from '../../../support/game.js';
 import { A, B, C, GAME, T0, waitingRoom } from '../../../support/rooms.js';
 
@@ -32,13 +32,15 @@ function stroke(points: number): Stroke {
 describe('GameRecorder', () => {
   let history: SavedGames;
   let clock: FakeClock;
+  let metrics: RecordingMetrics;
   let recorder: GameRecorder;
   let room: Room;
 
   beforeEach(() => {
     history = new SavedGames();
     clock = new FakeClock(T0);
-    recorder = new GameRecorder(history, clock);
+    metrics = new RecordingMetrics();
+    recorder = new GameRecorder(history, clock, metrics);
     room = waitingRoom();
   });
 
@@ -82,6 +84,13 @@ describe('GameRecorder', () => {
     at(clock.now() - T0 + TEST_OPTION.voteMs, () => room.expire(room.version, clock.now()));
     at(clock.now() - T0 + 100, () => room.submitAnswer(C, '도시'));
     expect(history.records).toEqual([]);
+    expect(metrics.gamesEnded).toEqual([]);
+  });
+
+  it('counts a finished game with its winner and whether it was a quick start', () => {
+    startGame();
+    finish();
+    expect(metrics.gamesEnded).toEqual([[history.records[0]!.winner, room.isQuickStart]]);
   });
 
   it('saves who played, with what rule and what word, once the result is out', () => {

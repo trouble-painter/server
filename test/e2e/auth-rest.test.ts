@@ -3,6 +3,7 @@ import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { testEnv } from '../support/env.js';
+import { PrometheusMetrics } from '../../src/shared/infrastructure/metrics/prometheus-metrics.js';
 
 const ENV = testEnv();
 
@@ -10,7 +11,7 @@ describe('auth REST', () => {
   let app: FastifyInstance;
 
   beforeEach(() => {
-    app = buildApp(ENV, pino({ enabled: false }));
+    app = buildApp(ENV, pino({ enabled: false }), new PrometheusMetrics());
   });
 
   afterEach(async () => {
@@ -22,6 +23,11 @@ describe('auth REST', () => {
     expect(res.statusCode).toBe(200);
     return res.json<{ userId: number; accessToken: string; refreshToken: string }>();
   }
+
+  it('does not serve metrics on the public port', async () => {
+    const res = await app.inject({ method: 'GET', url: '/metrics' });
+    expect(res.statusCode).toBe(404);
+  });
 
   it('anonymous-signin issues a new safe-integer userId each time', async () => {
     const a = await signIn();

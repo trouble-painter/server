@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
 import { testEnv } from '../support/env.js';
 import { Client, type Message } from '../support/ws-client.js';
+import { PrometheusMetrics } from '../../src/shared/infrastructure/metrics/prometheus-metrics.js';
 
 const GRACE_MS = 150;
 const ENV = testEnv({ WAIT_DISCONNECT_GRACE_MS: String(GRACE_MS) });
@@ -13,7 +14,7 @@ describe('WebSocket rooms', () => {
   const clients: Client[] = [];
 
   beforeEach(async () => {
-    app = buildApp(ENV, pino({ enabled: false }));
+    app = buildApp(ENV, pino({ enabled: false }), new PrometheusMetrics());
     const address = await app.listen({ host: '127.0.0.1', port: 0 });
     url = `${address.replace('http', 'ws')}/ws`;
   });

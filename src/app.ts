@@ -36,6 +36,7 @@ import { TypeAnswer } from './features/game/application/usecases/type-answer.js'
 import { UndoStroke } from './features/game/application/usecases/undo-stroke.js';
 import { Vote } from './features/game/application/usecases/vote.js';
 import { PLAYER_COUNT, type GameOption } from './features/game/domain/game-option.js';
+import { PhaseType } from './features/game/domain/phase.js';
 import { MAX_STROKES_PER_TURN } from './features/game/domain/game-rule.js';
 import type { Limits } from './features/game/domain/limits.js';
 import { JsonKeywordRepository } from './features/game/infrastructure/keywords/json-keyword-repository.js';
@@ -58,10 +59,11 @@ import { RandomIdGenerator } from './shared/infrastructure/id/random-id-generato
 import { CryptoRandom } from './shared/infrastructure/random/crypto-random.js';
 import { SystemClock } from './shared/infrastructure/time/system-clock.js';
 import { TimeoutScheduler } from './shared/infrastructure/time/timeout-scheduler.js';
+import type { PrometheusMetrics } from './shared/infrastructure/metrics/prometheus-metrics.js';
 import { WsServer } from './shared/infrastructure/ws/ws-server.js';
 
 /** Composition root: wires ports to implementations. */
-export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
+export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: PrometheusMetrics): FastifyInstance {
   const http = Fastify({ loggerInstance: logger });
   const ids = new RandomIdGenerator();
   const clock = new SystemClock();
@@ -114,7 +116,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
   const gameHistory = SqliteGameHistoryRepository.open(env.SQLITE_PATH, logger);
   const publisher = new RecordingRoomEventPublisher(
     new WsRoomEventPublisher(ws, keywords),
-    new GameRecorder(gameHistory, clock),
+    new GameRecorder(gameHistory, clock, metrics),
     logger,
   );
   const membership = new Membership(rooms, publisher, scheduler, clock);
@@ -144,7 +146,11 @@ export function buildApp(env: Env, logger: FastifyBaseLogger): FastifyInstance {
     gameStartPush,
     scheduler,
     clock,
+    metrics,
   );
+  metrics.addGauge('rooms_playing', 'Rooms in a game.', () => rooms.all().filter((room) => room.phase.type !== PhaseType.Wait).length);
+  metrics.addGauge('ws_connections', 'Open WebSocket connections.', () => ws.connectionCount);
+  metrics.addGauge('matching_queued_players', 'Players waiting in a quick-start queue.', () => matchmaking.queuedCount);
 
   const router = new WsRouter(logger, mapGameError);
   registerRoomHandlers(router, {

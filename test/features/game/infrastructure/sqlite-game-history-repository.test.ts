@@ -8,7 +8,7 @@ import { HistoryEventType, type GameRecord } from '../../../../src/features/game
 import { SqliteGameHistoryRepository } from '../../../../src/features/game/infrastructure/sqlite/sqlite-game-history-repository.js';
 import { SqliteRoomRepository } from '../../../../src/features/game/infrastructure/sqlite/sqlite-room-repository.js';
 import { Role } from '../../../../src/features/game/domain/role.js';
-import { FakeClock } from '../../../support/fakes.js';
+import { FakeClock, RecordingMetrics } from '../../../support/fakes.js';
 import { A, C, GAME, T0, waitingRoom } from '../../../support/rooms.js';
 
 interface GameRow {
@@ -50,7 +50,7 @@ describe('SqliteGameHistoryRepository', () => {
   function playedGame(): GameRecord {
     const saved: GameRecord[] = [];
     const clock = new FakeClock(T0);
-    const recorder = new GameRecorder({ save: (record) => saved.push(record) }, clock);
+    const recorder = new GameRecorder({ save: (record) => saved.push(record) }, clock, new RecordingMetrics());
     const room = waitingRoom();
     recorder.record(room, room.start(A, GAME, T0));
     clock.time = T0 + 5_000;
