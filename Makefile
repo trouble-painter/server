@@ -9,6 +9,10 @@ deploy-dev:
 deploy-prod:
 	bash .env/deploy/deploy.sh prod
 
+# Upload only .env/<env>/dev-uuids.txt (no restart); pass ENV=<dev|prod>
+sync-dev-uuids:
+	bash .env/deploy/sync-dev-uuids.sh $(ENV)
+
 # Install or update Prometheus, node_exporter and Grafana on the server
 deploy-monitoring:
 	bash .env/deploy/deploy-monitoring.sh
@@ -17,4 +21,4 @@ deploy-monitoring:
 deploy-backup:
 	bash .env/deploy/deploy-backup.sh
 
-.PHONY: run deploy-dev deploy-prod deploy-monitoring deploy-backup
+.PHONY: run deploy-dev deploy-prod sync-dev-uuids deploy-monitoring deploy-backup
