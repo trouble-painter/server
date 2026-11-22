@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { pino } from 'pino';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
-import { testEnv } from '../support/env.js';
+import { TEST_SERVER_VERSION, testEnv } from '../support/env.js';
 import { Client, type Message } from '../support/ws-client.js';
 import { PrometheusMetrics } from '../../src/shared/infrastructure/metrics/prometheus-metrics.js';
 
@@ -42,7 +42,7 @@ describe('WebSocket game', () => {
 
   async function boot(overrides: Record<string, string> = {}): Promise<void> {
     const env = testEnv({ ...FAST, ...overrides });
-    app = buildApp(env, pino({ enabled: false }), new PrometheusMetrics());
+    app = buildApp(env, pino({ enabled: false }), new PrometheusMetrics(), TEST_SERVER_VERSION);
     const address = await app.listen({ host: '127.0.0.1', port: 0 });
     url = `${address.replace('http', 'ws')}/ws`;
   }

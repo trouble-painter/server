@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { pino } from 'pino';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
-import { testEnv } from '../support/env.js';
+import { TEST_SERVER_VERSION, testEnv } from '../support/env.js';
 import { PrometheusMetrics } from '../../src/shared/infrastructure/metrics/prometheus-metrics.js';
 
 const ENV = testEnv();
@@ -11,7 +11,7 @@ describe('auth REST', () => {
   let app: FastifyInstance;
 
   beforeEach(() => {
-    app = buildApp(ENV, pino({ enabled: false }), new PrometheusMetrics());
+    app = buildApp(ENV, pino({ enabled: false }), new PrometheusMetrics(), TEST_SERVER_VERSION);
   });
 
   afterEach(async () => {
@@ -85,9 +85,9 @@ describe('auth REST', () => {
     expect(refresh.statusCode).toBe(401);
   });
 
-  it('config answers the room code length without authentication', async () => {
+  it('config answers the room code length and server version without authentication', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/v1/config' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ roomCodeLength: 4 });
+    expect(res.json()).toEqual({ roomCodeLength: 4, serverVersion: TEST_SERVER_VERSION });
   });
 });

@@ -63,7 +63,7 @@ import type { PrometheusMetrics } from './shared/infrastructure/metrics/promethe
 import { WsServer } from './shared/infrastructure/ws/ws-server.js';
 
 /** Composition root: wires ports to implementations. */
-export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: PrometheusMetrics): FastifyInstance {
+export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: PrometheusMetrics, serverVersion: string): FastifyInstance {
   const http = Fastify({ loggerInstance: logger });
   const ids = new RandomIdGenerator();
   const clock = new SystemClock();
@@ -92,7 +92,8 @@ export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: Prometheu
     maxStrokesPerTurn: MAX_STROKES_PER_TURN,
   };
 
-  registerConfigRoute(http);
+  registerConfigRoute(http, serverVersion);
+  metrics.setBuildInfo(serverVersion);
 
   const tokens = new JoseTokenService(env.JWT_SECRET, env.ACCESS_TOKEN_TTL_SEC);
   registerAuthRoutes(http, {
@@ -194,6 +195,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: Prometheu
       clock,
       limits,
       keywords,
+      serverVersion,
     }),
   });
 

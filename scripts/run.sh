@@ -33,6 +33,7 @@ if [ ! -f ".env/$APP_ENV/server.env" ]; then
 fi
 
 npx tsc -p tsconfig.build.json
+node scripts/write-build-info.mjs
 npx tsc -p tsconfig.build.json --watch --preserveWatchOutput &
 TSC_PID=$!
 trap 'kill "$TSC_PID" 2>/dev/null' EXIT

@@ -6,7 +6,7 @@
     "node": "26.13.1"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/write-build-info.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "start:dev": "APP_ENV=dev node dist/main.js",

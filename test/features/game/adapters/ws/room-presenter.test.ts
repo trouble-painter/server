@@ -115,9 +115,10 @@ describe('room presenter', () => {
   });
 
   it('HELLO carries the queue status of a queued user', () => {
-    const hello = helloMessage(7, TEST_LIMITS, null, { locale: Locale.En, waitingCount: 2, startsAt: null, minCount: 3, waitMs: 10_000, ready: null }, A, KEYWORDS).data as any;
+    const hello = helloMessage(7, 'v1', TEST_LIMITS, null, { locale: Locale.En, waitingCount: 2, startsAt: null, minCount: 3, waitMs: 10_000, ready: null }, A, KEYWORDS).data as any;
+    expect(hello.serverVersion).toBe('v1');
     expect(hello.room).toBeNull();
     expect(hello.matching).toEqual({ locale: 'EN', waitingCount: 2, startsAt: null, minCount: 3, waitMs: 10_000, ready: null });
-    expect((helloMessage(7, TEST_LIMITS, null, null, A, KEYWORDS).data as any).matching).toBeNull();
+    expect((helloMessage(7, 'v1', TEST_LIMITS, null, null, A, KEYWORDS).data as any).matching).toBeNull();
   });
 });

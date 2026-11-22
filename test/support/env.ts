@@ -2,6 +2,9 @@ import { type Env, parseEnv } from '../../src/shared/infrastructure/config/env.j
 import { KEYWORDS_FIXTURE_DIR } from './game.js';
 
 /** A complete settings source for tests; real values live in the private server.env files. */
+/** The version the tests' servers report. */
+export const TEST_SERVER_VERSION = 'test-version';
+
 export const TEST_ENV_SOURCE: Readonly<Record<string, string>> = {
   APP_ENV: 'dev',
   PORT: '8080',

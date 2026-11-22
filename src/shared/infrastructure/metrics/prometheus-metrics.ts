@@ -54,6 +54,11 @@ export class PrometheusMetrics implements GameMetrics, MatchingMetrics {
     });
   }
 
+  /** The conventional `build_info` gauge: constant 1, the version in a label. */
+  setBuildInfo(version: string): void {
+    new Gauge({ name: 'build_info', help: 'The commit this server was built from.', labelNames: ['version'], registers: [this.#registry] }).set({ version }, 1);
+  }
+
   get contentType(): string {
     return this.#registry.contentType;
   }

@@ -175,6 +175,7 @@ function resultView(result: Result, keyword: string) {
 
 export function helloMessage(
   serverTime: number,
+  serverVersion: string,
   limits: Limits,
   room: Room | null,
   matching: MatchingStatus | null,
@@ -185,6 +186,7 @@ export function helloMessage(
     type: ServerMessageType.Hello,
     data: {
       serverTime,
+      serverVersion,
       limits: limitsView(limits),
       ruleSpec: ruleSpecView(),
       room: room === null ? null : roomView(room, viewer, keywords),

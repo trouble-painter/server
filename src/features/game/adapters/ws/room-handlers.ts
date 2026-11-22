@@ -54,12 +54,13 @@ export function connectionHandlers(deps: {
   clock: Clock;
   limits: Limits;
   keywords: KeywordRepository;
+  serverVersion: string;
 }) {
   return {
     onConnect: (userId: UserId): ServerMessage => {
       const room = deps.connectUser.execute(userId);
       const matching = deps.queue.connect(userId);
-      return helloMessage(deps.clock.now(), deps.limits, room, matching, userId, deps.keywords);
+      return helloMessage(deps.clock.now(), deps.serverVersion, deps.limits, room, matching, userId, deps.keywords);
     },
     onDisconnect: (userId: UserId): void => {
       deps.disconnectUser.execute(userId);

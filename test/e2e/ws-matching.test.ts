@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { pino } from 'pino';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../../src/app.js';
-import { testEnv } from '../support/env.js';
+import { TEST_SERVER_VERSION, testEnv } from '../support/env.js';
 import { Client, type Message } from '../support/ws-client.js';
 import { PrometheusMetrics } from '../../src/shared/infrastructure/metrics/prometheus-metrics.js';
 
@@ -36,7 +36,7 @@ describe('WebSocket quick start', () => {
   });
 
   async function boot(): Promise<void> {
-    app = buildApp(testEnv(FAST), pino({ enabled: false }), new PrometheusMetrics());
+    app = buildApp(testEnv(FAST), pino({ enabled: false }), new PrometheusMetrics(), TEST_SERVER_VERSION);
     const address = await app.listen({ host: '127.0.0.1', port: 0 });
     url = `${address.replace('http', 'ws')}/ws`;
   }

@@ -13,6 +13,12 @@ describe('PrometheusMetrics', () => {
     expect(text).toContain('games_ended_total{winner="citizen",mode="room"} 1');
   });
 
+  it('exposes the server version as build_info', async () => {
+    const metrics = new PrometheusMetrics();
+    metrics.setBuildInfo('abc1234');
+    expect(await metrics.render()).toContain('build_info{version="abc1234"} 1');
+  });
+
   it('counts the players of each matching step', async () => {
     const metrics = new PrometheusMetrics();
     metrics.found(6);
