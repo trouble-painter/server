@@ -68,6 +68,8 @@ const EnvSchema = z.object({
   KEYWORDS_DIR: z.string().min(1),
   /** `:memory:` keeps nothing. */
   SQLITE_PATH: z.string().min(1),
+  /** Developer uuids, one per line. Read on every lookup; a missing file means none. */
+  DEV_UUIDS_PATH: z.string().min(1),
   RESTORE_GRACE_MS: positiveInt,
   MATCH_MIN: positiveInt,
   MATCH_TARGET: positiveInt,

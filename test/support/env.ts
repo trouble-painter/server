@@ -32,6 +32,7 @@ export const TEST_ENV_SOURCE: Readonly<Record<string, string>> = {
   MAX_ANSWER_LENGTH: '20',
   KEYWORDS_DIR: KEYWORDS_FIXTURE_DIR,
   SQLITE_PATH: ':memory:',
+  DEV_UUIDS_PATH: 'unused-unless-a-test-sets-it.txt',
   RESTORE_GRACE_MS: '10000',
   MATCH_MIN: '3',
   MATCH_TARGET: '6',

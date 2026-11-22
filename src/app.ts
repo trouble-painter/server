@@ -51,10 +51,12 @@ import { FcmPushNotifier, type PushText } from './features/matching/infrastructu
 import { LogPushNotifier } from './features/matching/infrastructure/log-push-notifier.js';
 import { parseBearer } from './shared/adapters/http/bearer.js';
 import { registerConfigRoute } from './shared/adapters/http/config-route.js';
+import { registerDeveloperRoute } from './shared/adapters/http/developer-route.js';
 import { WS_PATH } from './shared/adapters/ws/protocol.js';
 import { WsRouter } from './shared/adapters/ws/router.js';
 import { Locale } from './shared/domain/locale.js';
 import { pushTextOf, PushTextPrefix, type Env } from './shared/infrastructure/config/env.js';
+import { FileDeveloperRegistry } from './shared/infrastructure/developer/file-developer-registry.js';
 import { RandomIdGenerator } from './shared/infrastructure/id/random-id-generator.js';
 import { CryptoRandom } from './shared/infrastructure/random/crypto-random.js';
 import { SystemClock } from './shared/infrastructure/time/system-clock.js';
@@ -93,6 +95,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: Prometheu
   };
 
   registerConfigRoute(http, serverVersion);
+  registerDeveloperRoute(http, new FileDeveloperRegistry(env.DEV_UUIDS_PATH));
   metrics.setBuildInfo(serverVersion);
 
   const tokens = new JoseTokenService(env.JWT_SECRET, env.ACCESS_TOKEN_TTL_SEC);
