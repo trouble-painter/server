@@ -23,12 +23,15 @@ import { ROOM_SNAPSHOT_VERSION, type RoomSnapshot } from './room-snapshot.js';
 import { Role } from './role.js';
 import { scheduleTurn } from './rules/turn-timing.js';
 import { accusedBy } from './rules/vote-tally.js';
+import { Vacancy } from './vacancy.js';
 
 export interface Player {
   readonly userId: UserId;
   readonly nickname: Nickname;
   readonly color: PlayerColor;
   isConnected: boolean;
+  /** Sent LEAVE_ROOM during the game, as opposed to losing the connection; cleared when they come back. */
+  hasLeft: boolean;
   /** Only a non-host player of a waiting custom room readies up; the host's stays false. */
   isReady: boolean;
 }
@@ -129,6 +132,19 @@ export class Room {
     return this.#emptySince;
   }
 
+  /** A game stops its clock while nobody is connected, and picks up where it was when someone comes back. */
+  get isPaused(): boolean {
+    return this.isInGame && this.#emptySince !== null;
+  }
+
+  get vacancy(): Vacancy {
+    if (!this.isPaused) {
+      return Vacancy.Occupied;
+    }
+    const left = this.#players.filter((p) => p.hasLeft).length;
+    return left * 2 > this.#players.length ? Vacancy.Deserted : Vacancy.Stranded;
+  }
+
   /** Goes up on every phase or turn change, so a timer armed for an earlier one can tell it is stale. */
   get version(): number {
     return this.#version;
@@ -192,7 +208,7 @@ export class Room {
     if (color === undefined) {
       throw new GameError(GameErrorCode.RoomFull);
     }
-    this.#players.push({ userId, nickname, color, isConnected: true, isReady: false });
+    this.#players.push({ userId, nickname, color, isConnected: true, hasLeft: false, isReady: false });
     this.#emptySince = null;
     return [PLAYERS_CHANGED];
   }
@@ -213,14 +229,28 @@ export class Room {
     return [PLAYERS_CHANGED];
   }
 
+  /** Coming back also takes back a LEAVE_ROOM, and the first one back resumes a paused game. */
   setConnected(userId: UserId, isConnected: boolean, now: number): RoomEvent[] {
     const player = this.#find(userId);
     if (player === undefined || player.isConnected === isConnected) {
       return [];
     }
+    if (isConnected) {
+      player.hasLeft = false;
+      this.#resume(now);
+    }
     player.isConnected = isConnected;
     this.#updateEmptySince(now);
     return [PLAYERS_CHANGED];
+  }
+
+  /** LEAVE_ROOM during a game: the player stays in it, away, and counts as having left on purpose. */
+  leaveGame(userId: UserId, now: number): RoomEvent[] {
+    const player = this.#find(userId);
+    if (player !== undefined && this.isInGame) {
+      player.hasLeft = true;
+    }
+    return this.setConnected(userId, false, now);
   }
 
   /** Only a non-host player of a waiting custom room. */
@@ -421,8 +451,10 @@ export class Room {
   /**
    * After a restart nobody is connected yet: everyone is marked away, and a running deadline
    * is pushed to at least `now + graceMs` so players have time to reconnect.
+   * A game that was already paused loses none of its time to the restart.
    */
   resumeAfterRestart(now: number, graceMs: number): void {
+    this.#resume(now);
     for (const player of this.#players) {
       player.isConnected = false;
     }
@@ -515,6 +547,33 @@ export class Room {
       throw new Error(`no drawer for turn ${turn}`);
     }
     return drawerId;
+  }
+
+  /** Moves the clock of a paused game on by the time it was paused. */
+  #resume(now: number): void {
+    if (this.#emptySince === null) {
+      return;
+    }
+    const by = now - this.#emptySince;
+    const phase = this.#phase;
+    switch (phase.type) {
+      case PhaseType.Wait:
+      case PhaseType.End:
+        return;
+      case PhaseType.Drawing: {
+        const { turn } = phase;
+        this.#phase = {
+          ...phase,
+          turn: { ...turn, startedAt: turn.startedAt + by, drawFrom: turn.drawFrom + by, deadline: turn.deadline + by },
+        };
+        return;
+      }
+      case PhaseType.Ready:
+      case PhaseType.Vote:
+      case PhaseType.Answer:
+        this.#phase = { ...phase, deadline: phase.deadline + by };
+        return;
+    }
   }
 
   #updateEmptySince(now: number): void {

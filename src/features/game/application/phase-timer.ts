@@ -20,10 +20,10 @@ export class PhaseTimer {
     private readonly clock: Clock,
   ) {}
 
-  /** Call after anything that may change the phase or turn. */
+  /** Call after anything that may change the phase or turn, or pause or resume the game. */
   sync(room: Room): void {
     const key = phaseTimerKey(room.id);
-    const deadline = room.deadline;
+    const deadline = room.isPaused ? null : room.deadline;
     if (deadline === null) {
       this.scheduler.cancel(key);
       return;

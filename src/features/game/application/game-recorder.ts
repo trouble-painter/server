@@ -1,12 +1,13 @@
 import type { Clock } from '../../../shared/application/ports/clock.js';
 import type { RoomCode } from '../../../shared/domain/room-code.js';
 import type { UserId } from '../../../shared/domain/user-id.js';
-import { HistoryEventType, type GameMeta, type HistoryEvent } from '../domain/game-history.js';
+import { HistoryEventType, type GameHistoryPlayer, type GameMeta, type HistoryEvent } from '../domain/game-history.js';
 import { PhaseType, type Canvas, type Stroke, type Turn } from '../domain/phase.js';
 import { RoomEventType, type RoomEvent } from '../domain/room-event.js';
 import type { Room } from '../domain/room.js';
 import type { GameHistoryRepository } from './ports/game-history-repository.js';
 import type { GameMetrics } from './ports/game-metrics.js';
+import type { GameRecordings } from './ports/game-recordings.js';
 
 /** The stroke being drawn: it is kept as one entry until some other event shows it is finished. */
 interface PendingStroke {
@@ -18,19 +19,47 @@ interface PendingStroke {
   canvas: Canvas;
 }
 
-/** A game in progress. Times it hands out are relative to the start. */
+/** A game in progress. Times it hands out are relative to the start, with the time the game stood still left out. */
 class Recording {
   readonly #events: HistoryEvent[] = [];
   #pending: PendingStroke | null = null;
+  readonly #leavers = new Set<UserId>();
+  #pausedAt: number | null = null;
+  #pausedFor = 0;
 
   constructor(
     readonly startedAt: number,
     readonly meta: GameMeta,
   ) {}
 
-  /** Milliseconds since the game started. */
+  /** Milliseconds of play since the game started. */
   since(time: number): number {
-    return time - this.startedAt;
+    return time - this.startedAt - this.#pausedFor;
+  }
+
+  /** A player who leaves stays flagged even if they come back. */
+  followLeavers(room: Room): void {
+    for (const player of room.players) {
+      if (player.hasLeft) {
+        this.#leavers.add(player.userId);
+      }
+    }
+  }
+
+  /** The players as they were when the game started, flagged with who left it since. */
+  players(): readonly GameHistoryPlayer[] {
+    return this.meta.players.map((player) => ({ ...player, hasLeft: this.#leavers.has(player.userId) }));
+  }
+
+  /** The room's clock stops while nobody is connected and moves its deadlines on by that time when it runs again. */
+  followPause(room: Room, now: number): void {
+    const pausedAt = room.isPaused ? room.emptySince : null;
+    if (pausedAt !== null && this.#pausedAt === null) {
+      this.#pausedAt = pausedAt;
+    } else if (pausedAt === null && this.#pausedAt !== null) {
+      this.#pausedFor += now - this.#pausedAt;
+      this.#pausedAt = null;
+    }
   }
 
   /** A stroke is sent again and again as it grows; only the last version of each is kept. */
@@ -90,7 +119,7 @@ class Recording {
  * Follows the events of each room's game and saves the whole game, drawing included, when its result
  * comes out. A game the recorder did not see start (the server restarted in the middle of it) is not saved.
  */
-export class GameRecorder {
+export class GameRecorder implements GameRecordings {
   readonly #recordings = new Map<RoomCode, Recording>();
 
   constructor(
@@ -99,9 +128,16 @@ export class GameRecorder {
     private readonly metrics: GameMetrics,
   ) {}
 
+  discard(roomId: RoomCode): void {
+    this.#recordings.delete(roomId);
+  }
+
   /** Call with what the room just raised, after the room has changed. */
   record(room: Room, events: readonly RoomEvent[]): void {
     const now = this.clock.now();
+    const running = this.#recordings.get(room.id);
+    running?.followPause(room, now);
+    running?.followLeavers(room);
     for (const event of events) {
       if (event.type === RoomEventType.PhaseChanged) {
         this.#onPhaseChanged(room, now);
@@ -154,7 +190,7 @@ export class GameRecorder {
           isQuickStart: room.isQuickStart,
           option: room.option,
           rule: room.rule,
-          players: room.players.map(({ userId, nickname, color }) => ({ userId, nickname, color })),
+          players: room.players.map(({ userId, nickname, color }) => ({ userId, nickname, color, hasLeft: false })),
           game: phase.game,
         }),
       );
@@ -181,7 +217,7 @@ export class GameRecorder {
           startedAt: recording.startedAt,
           endedAt: now,
           winner: phase.result.winner,
-          meta: recording.meta,
+          meta: { ...recording.meta, players: recording.players() },
           events: recording.events(),
         });
         this.metrics.gameEnded(phase.result.winner, room.isQuickStart);

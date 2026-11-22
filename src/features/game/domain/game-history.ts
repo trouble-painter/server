@@ -70,6 +70,8 @@ export interface GameHistoryPlayer {
   readonly userId: UserId;
   readonly nickname: Nickname;
   readonly color: PlayerColor;
+  /** Sent LEAVE_ROOM at some point during the game, so did not play it through; a lost connection does not count. */
+  readonly hasLeft: boolean;
 }
 
 /** What the game was played with; fixed when it starts. */

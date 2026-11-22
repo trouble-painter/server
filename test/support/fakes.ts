@@ -1,3 +1,4 @@
+import type { GameRecordings } from '../../src/features/game/application/ports/game-recordings.js';
 import type { GameMetrics } from '../../src/features/game/application/ports/game-metrics.js';
 import type { QueueMembership } from '../../src/features/game/application/ports/queue-membership.js';
 import type { Role } from '../../src/features/game/domain/role.js';
@@ -35,6 +36,9 @@ export class FakeScheduler implements Scheduler {
     entry.task();
   }
 }
+
+/** For tests that do not care about the game recordings kept in memory. */
+export const NO_RECORDINGS: GameRecordings = { discard: () => {} };
 
 /** Records who was taken out of the quick-start queue; nobody is ever queued. */
 export class RecordingQueue implements QueueMembership {

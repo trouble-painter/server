@@ -134,6 +134,21 @@ describe('SqliteRoomRepository', () => {
     expect(restored.toSnapshot()).toEqual(room.toSnapshot());
   });
 
+  it('reads a room saved before players could leave a game as everyone having lost their connection', () => {
+    const repository = open();
+    const room = waitingRoom('AAAA');
+    repository.close();
+    opened.splice(0);
+    const { players, ...rest } = room.toSnapshot();
+    const v3 = { ...rest, v: 3, players: players.map(({ hasLeft: _hasLeft, ...player }) => player) };
+    const db = new DatabaseSync(path);
+    db.prepare('INSERT INTO rooms VALUES (?, ?, ?)').run('AAAA', JSON.stringify(v3), clock.now());
+    db.close();
+
+    const restored = open().get(room.id)!;
+    expect(restored.toSnapshot()).toEqual(room.toSnapshot());
+  });
+
   it('keeps the room in memory and logs when a write fails', () => {
     const repository = open();
     const error = vi.spyOn(logger, 'error');

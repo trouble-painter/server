@@ -117,6 +117,43 @@ describe('GameRecorder', () => {
     ]);
   });
 
+  it('leaves the time the game stood still out of the record, so nothing is out of step', () => {
+    startGame();
+    const firstEndsAt = startAt + TEST_OPTION.introAnimationMs + TEST_OPTION.roundAnimationMs + TEST_OPTION.turnMs;
+    const away = startAt + 1_000;
+    const pause = 20_000;
+    at(away, () => [A, B, C].flatMap((userId) => room.setConnected(userId, false, clock.now())));
+    expect(room.isPaused).toBe(true);
+    at(away + pause, () => room.setConnected(B, true, clock.now()));
+    expect(room.deadline).toBe(T0 + firstEndsAt + pause);
+    finish();
+
+    const turns = savedEvents().filter((e) => e.type === HistoryEventType.Turn);
+    expect(turns[0]).toMatchObject({ at: startAt, deadlineAt: firstEndsAt });
+    expect(turns[1]).toMatchObject({ at: firstEndsAt });
+  });
+
+  it('flags the players who left the game, even if they came back, but not those who only lost their connection', () => {
+    startGame();
+    at(startAt + 1_000, () => room.leaveGame(A, clock.now()));
+    at(startAt + 2_000, () => room.setConnected(A, true, clock.now()));
+    at(startAt + 3_000, () => room.leaveGame(B, clock.now()));
+    at(startAt + 4_000, () => room.setConnected(C, false, clock.now()));
+    finish();
+    expect(history.records[0]?.meta.players.map((p) => [p.userId, p.hasLeft])).toEqual([
+      [A, true],
+      [B, true],
+      [C, false],
+    ]);
+  });
+
+  it('forgets a game whose room is discarded before its result', () => {
+    startGame();
+    recorder.discard(room.id);
+    finish();
+    expect(history.records).toEqual([]);
+  });
+
   it('records every turn with its time on the game clock', () => {
     startGame();
     finish();

@@ -80,31 +80,43 @@ const option = {
   answerMs: count,
 };
 
+const player = {
+  userId,
+  nickname: branded(z.string(), toNickname),
+  color: z.enum(PlayerColor),
+  isConnected: z.boolean(),
+  isReady: z.boolean(),
+};
+
 const rest = {
   id: branded(z.string(), toRoomCode),
   locale: z.enum(Locale),
   isQuickStart: z.boolean(),
   hostId: userId,
-  players: z.array(
-    z.object({
-      userId,
-      nickname: branded(z.string(), toNickname),
-      color: z.enum(PlayerColor),
-      isConnected: z.boolean(),
-      isReady: z.boolean(),
-    }),
-  ),
   phase,
   emptySince: time.nullable(),
   version: count,
 };
 
-const RoomSnapshotV3Schema = z.object({
+/** Saved before players could have left a game on purpose: everyone away had lost their connection. */
+const legacyRest = {
+  ...rest,
+  players: z.array(z.object(player)).transform((players) => players.map((p) => ({ ...p, hasLeft: false }))),
+};
+
+const rule = z.object({ strokesPerTurn: count.nullable(), categoryIds: z.array(z.string()), keywordLocale: z.enum(Locale) });
+
+const RoomSnapshotV4Schema = z.object({
   v: z.literal(ROOM_SNAPSHOT_VERSION),
   option: z.object({ ...option, defaultStrokesPerTurn: count }),
-  rule: z.object({ strokesPerTurn: count.nullable(), categoryIds: z.array(z.string()), keywordLocale: z.enum(Locale) }),
+  rule,
   ...rest,
+  players: z.array(z.object({ ...player, hasLeft: z.boolean() })),
 });
+
+const RoomSnapshotV3Schema = z
+  .object({ v: z.literal(3), option: z.object({ ...option, defaultStrokesPerTurn: count }), rule, ...legacyRest })
+  .transform((snapshot) => ({ ...snapshot, v: ROOM_SNAPSHOT_VERSION as typeof ROOM_SNAPSHOT_VERSION }));
 
 /** Saved before the rule had a keyword locale: the keywords were in the room's locale. */
 const RoomSnapshotV2Schema = z
@@ -112,7 +124,7 @@ const RoomSnapshotV2Schema = z
     v: z.literal(2),
     option: z.object({ ...option, defaultStrokesPerTurn: count }),
     rule: z.object({ strokesPerTurn: count.nullable(), categoryIds: z.array(z.string()) }),
-    ...rest,
+    ...legacyRest,
   })
   .transform(({ rule, ...snapshot }) => ({
     ...snapshot,
@@ -122,7 +134,7 @@ const RoomSnapshotV2Schema = z
 
 /** Saved before rooms had a rule: every room played the configured stroke count over all categories. */
 const RoomSnapshotV1Schema = z
-  .object({ v: z.literal(1), option: z.object({ ...option, strokesPerTurn: count }), ...rest })
+  .object({ v: z.literal(1), option: z.object({ ...option, strokesPerTurn: count }), ...legacyRest })
   .transform(({ option: { strokesPerTurn, ...option }, ...snapshot }) => ({
     ...snapshot,
     v: ROOM_SNAPSHOT_VERSION as typeof ROOM_SNAPSHOT_VERSION,
@@ -131,4 +143,9 @@ const RoomSnapshotV1Schema = z
   }));
 
 /** Checks a saved room before it is trusted; the annotation keeps it in step with {@link RoomSnapshot}. */
-export const RoomSnapshotSchema: z.ZodType<RoomSnapshot> = z.union([RoomSnapshotV3Schema, RoomSnapshotV2Schema, RoomSnapshotV1Schema]);
+export const RoomSnapshotSchema: z.ZodType<RoomSnapshot> = z.union([
+  RoomSnapshotV4Schema,
+  RoomSnapshotV3Schema,
+  RoomSnapshotV2Schema,
+  RoomSnapshotV1Schema,
+]);

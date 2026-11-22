@@ -2,6 +2,7 @@ import type { Clock } from '../../../../shared/application/ports/clock.js';
 import type { Scheduler } from '../../../../shared/application/ports/scheduler.js';
 import type { UserId } from '../../../../shared/domain/user-id.js';
 import type { Room } from '../../domain/room.js';
+import type { GameVacancy } from '../game-vacancy.js';
 import { waitLeaveKey } from '../membership.js';
 import type { RoomEventPublisher } from '../ports/room-event-publisher.js';
 import type { RoomRepository } from '../ports/room-repository.js';
@@ -11,6 +12,7 @@ export class ConnectUser {
     private readonly rooms: RoomRepository,
     private readonly publisher: RoomEventPublisher,
     private readonly scheduler: Scheduler,
+    private readonly vacancy: GameVacancy,
     private readonly clock: Clock,
   ) {}
 
@@ -24,6 +26,7 @@ export class ConnectUser {
     const events = room.setConnected(userId, true, this.clock.now());
     this.rooms.save(room);
     this.publisher.publish(room, events, userId);
+    this.vacancy.settle(room);
     return room;
   }
 }

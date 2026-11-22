@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { GameStartPush } from '../../../../src/features/game/application/game-start-push.js';
+import { GameVacancy, vacancyKey } from '../../../../src/features/game/application/game-vacancy.js';
 import { Membership } from '../../../../src/features/game/application/membership.js';
 import { phaseTimerKey, PhaseTimer } from '../../../../src/features/game/application/phase-timer.js';
 import type { RoomEventPublisher } from '../../../../src/features/game/application/ports/room-event-publisher.js';
 import { CleanupRooms } from '../../../../src/features/game/application/usecases/cleanup-rooms.js';
+import { ConnectUser } from '../../../../src/features/game/application/usecases/connect-user.js';
 import { CreateRoom } from '../../../../src/features/game/application/usecases/create-room.js';
+import { DisconnectUser } from '../../../../src/features/game/application/usecases/disconnect-user.js';
 import { EndTurn } from '../../../../src/features/game/application/usecases/end-turn.js';
 import { JoinRoom } from '../../../../src/features/game/application/usecases/join-room.js';
 import { LeaveRoom } from '../../../../src/features/game/application/usecases/leave-room.js';
@@ -28,6 +31,7 @@ import { FakeClock, FakeScheduler, RecordingQueue } from '../../../support/fakes
 import { FakeRandom, FixedKeywords, TEST_OPTION } from '../../../support/game.js';
 
 const NICK = 'nick' as Nickname;
+const VACANCY_GRACE_MS = 30_000;
 const [A, B, C] = [1, 2, 3] as UserId[] as [UserId, UserId, UserId];
 
 class RecordingPublisher implements RoomEventPublisher {
@@ -52,6 +56,8 @@ describe('game use cases', () => {
   let clock: FakeClock;
   let membership: Membership;
   let timer: PhaseTimer;
+  let vacancy: GameVacancy;
+  let recordings: { discarded: RoomCode[]; discard(roomId: RoomCode): void };
   let pushed: [Locale, readonly string[]][];
   let push: GameStartPush;
   let room: Room;
@@ -63,6 +69,8 @@ describe('game use cases', () => {
     clock = new FakeClock();
     membership = new Membership(rooms, publisher, scheduler, clock);
     timer = new PhaseTimer(rooms, publisher, scheduler, clock);
+    recordings = { discarded: [], discard(roomId) { this.discarded.push(roomId); } };
+    vacancy = new GameVacancy(rooms, scheduler, recordings, timer, clock, VACANCY_GRACE_MS);
     pushed = [];
     push = new GameStartPush({ notifyGameStarted: (locale, tokens) => pushed.push([locale, tokens]), notifyMatchFound: () => {} });
     room = new CreateRoom(rooms, membership, new RecordingQueue(), ONE_CODE, TEST_OPTION).execute(A, NICK, Locale.Ko);
@@ -85,6 +93,18 @@ describe('game use cases', () => {
 
   function start(random = new FakeRandom()): void {
     new StartGame(rooms, publisher, timer, new FixedKeywords(), random, clock, push).execute(A);
+  }
+
+  function leave(userId: UserId): void {
+    new LeaveRoom(rooms, membership, publisher, vacancy, clock).execute(userId);
+  }
+
+  function disconnect(userId: UserId): void {
+    new DisconnectUser(rooms, membership, publisher, vacancy, clock, VACANCY_GRACE_MS).execute(userId);
+  }
+
+  function connect(userId: UserId): Room | null {
+    return new ConnectUser(rooms, publisher, scheduler, vacancy, clock).execute(userId);
   }
 
   /** Fires the room's phase timer after moving the clock to its deadline. */
@@ -179,7 +199,7 @@ describe('game use cases', () => {
 
   it('leaving during a game marks the player away instead of removing them', () => {
     start();
-    new LeaveRoom(rooms, membership, publisher, clock).execute(B);
+    leave(B);
     expect(room.players.map((p) => [p.userId, p.isConnected])).toEqual([
       [A, true],
       [B, false],
@@ -187,6 +207,63 @@ describe('game use cases', () => {
     ]);
     expect(rooms.findByUser(B)).toBe(room);
     expect(publisher.events).toEqual([RoomEventType.PhaseChanged, RoomEventType.PlayersChanged]);
+  });
+
+  it('deletes a game at once when everyone is away and most of them left', () => {
+    start();
+    disconnect(A);
+    leave(B);
+    expect(rooms.get(room.id)).toBe(room);
+    leave(C);
+    expect(rooms.get(room.id)).toBeNull();
+    expect(rooms.findByUser(A)).toBeNull();
+    expect(scheduler.tasks.size).toBe(0);
+    expect(recordings.discarded).toEqual([room.id]);
+    expect(connect(A)).toBeNull();
+  });
+
+  it('a lost connection that leaves only leavers behind also deletes the game', () => {
+    start();
+    leave(A);
+    leave(B);
+    disconnect(C);
+    expect(rooms.get(room.id)).toBeNull();
+  });
+
+  it('pauses a game that most players dropped out of, and deletes it if nobody is back within the grace', () => {
+    start();
+    leave(A);
+    disconnect(B);
+    clock.time += 1_000;
+    disconnect(C);
+    expect(rooms.get(room.id)).toBe(room);
+    expect(scheduler.tasks.has(phaseTimerKey(room.id))).toBe(false);
+    expect(scheduler.tasks.get(vacancyKey(room.id))?.delayMs).toBe(VACANCY_GRACE_MS);
+
+    // A leaver's socket closing later does not restart the grace.
+    clock.time += 5_000;
+    disconnect(A);
+    expect(scheduler.tasks.get(vacancyKey(room.id))?.delayMs).toBe(VACANCY_GRACE_MS - 5_000);
+
+    scheduler.fire(vacancyKey(room.id));
+    expect(rooms.get(room.id)).toBeNull();
+    expect(rooms.findByUser(B)).toBeNull();
+    expect(recordings.discarded).toEqual([room.id]);
+  });
+
+  it('the first one back resumes the paused game with the time it had left', () => {
+    start();
+    fireDeadline();
+    clock.time += 4_000;
+    const left = room.deadline! - clock.time;
+    for (const userId of [A, B, C]) {
+      disconnect(userId);
+    }
+    clock.time += 20_000;
+    expect(connect(B)).toBe(room);
+    expect(scheduler.tasks.has(vacancyKey(room.id))).toBe(false);
+    expect(scheduler.tasks.get(phaseTimerKey(room.id))?.delayMs).toBe(left);
+    expect(room.deadline! - clock.time).toBe(left);
   });
 
   it('after the result everyone leaves, and the empty room stays for playing again', () => {
@@ -226,7 +303,7 @@ describe('game use cases', () => {
       room.setConnected(id, false, clock.now());
     }
     clock.time += 600_000;
-    new CleanupRooms(rooms, scheduler, clock, 600_000).execute();
+    new CleanupRooms(rooms, scheduler, recordings, clock, 600_000).execute();
     expect(rooms.get(room.id)).toBeNull();
     expect(scheduler.tasks.has(phaseTimerKey(room.id))).toBe(false);
   });

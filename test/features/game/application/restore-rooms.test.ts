@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { GameVacancy, vacancyKey } from '../../../../src/features/game/application/game-vacancy.js';
 import { Membership, waitLeaveKey } from '../../../../src/features/game/application/membership.js';
 import { phaseTimerKey, PhaseTimer } from '../../../../src/features/game/application/phase-timer.js';
 import type { RoomEventPublisher } from '../../../../src/features/game/application/ports/room-event-publisher.js';
@@ -6,11 +7,12 @@ import { RestoreRooms } from '../../../../src/features/game/application/usecases
 import { PhaseType } from '../../../../src/features/game/domain/phase.js';
 import type { Room } from '../../../../src/features/game/domain/room.js';
 import { MemoryRoomRepository } from '../../../../src/features/game/infrastructure/memory/memory-room-repository.js';
-import { FakeClock, FakeScheduler } from '../../../support/fakes.js';
+import { FakeClock, FakeScheduler, NO_RECORDINGS } from '../../../support/fakes.js';
 import { A, B, C, roomsInEveryPhase, waitingRoom } from '../../../support/rooms.js';
 
 const RESTORE_GRACE_MS = 10_000;
 const WAIT_GRACE_MS = 30_000;
+const VACANCY_GRACE_MS = 30_000;
 
 const SILENT: RoomEventPublisher = { publish: () => {} };
 
@@ -18,6 +20,7 @@ describe('RestoreRooms', () => {
   let rooms: MemoryRoomRepository;
   let scheduler: FakeScheduler;
   let clock: FakeClock;
+  let timer: PhaseTimer;
   let restore: RestoreRooms;
 
   beforeEach(() => {
@@ -25,8 +28,9 @@ describe('RestoreRooms', () => {
     scheduler = new FakeScheduler();
     clock = new FakeClock();
     const membership = new Membership(rooms, SILENT, scheduler, clock);
-    const timer = new PhaseTimer(rooms, SILENT, scheduler, clock);
-    restore = new RestoreRooms(rooms, membership, timer, clock, RESTORE_GRACE_MS, WAIT_GRACE_MS);
+    timer = new PhaseTimer(rooms, SILENT, scheduler, clock);
+    const vacancy = new GameVacancy(rooms, scheduler, NO_RECORDINGS, timer, clock, VACANCY_GRACE_MS);
+    restore = new RestoreRooms(rooms, membership, vacancy, clock, RESTORE_GRACE_MS, WAIT_GRACE_MS);
   });
 
   function load(room: Room): Room {
@@ -34,16 +38,32 @@ describe('RestoreRooms', () => {
     return room;
   }
 
-  it('arms the phase timer on the extended deadline of a game', () => {
+  it('pauses a game on its extended deadline until someone is back', () => {
     const room = load(roomsInEveryPhase()[PhaseType.Vote]);
     clock.time = room.deadline! + 5_000;
     restore.execute();
     expect(room.players.some((p) => p.isConnected)).toBe(false);
-    expect(scheduler.tasks.get(phaseTimerKey(room.id))?.delayMs).toBe(RESTORE_GRACE_MS);
+    expect(scheduler.tasks.has(phaseTimerKey(room.id))).toBe(false);
+    expect(scheduler.tasks.get(vacancyKey(room.id))?.delayMs).toBe(VACANCY_GRACE_MS);
     expect(scheduler.tasks.has(waitLeaveKey(A))).toBe(false);
 
+    clock.time += 3_000;
+    room.setConnected(A, true, clock.now());
+    timer.sync(room);
+    expect(scheduler.tasks.get(phaseTimerKey(room.id))?.delayMs).toBe(RESTORE_GRACE_MS);
     scheduler.fire(phaseTimerKey(room.id));
     expect(room.phase.type).not.toBe(PhaseType.Vote);
+  });
+
+  it('holds a game for the grace even when most players had left it, and deletes it if nobody is back', () => {
+    const room = roomsInEveryPhase()[PhaseType.Vote];
+    room.leaveGame(A, clock.now());
+    room.leaveGame(B, clock.now());
+    load(room);
+    restore.execute();
+    expect(rooms.get(room.id)).toBe(room);
+    scheduler.fire(vacancyKey(room.id));
+    expect(rooms.get(room.id)).toBeNull();
   });
 
   it('lets waiting players go unless they reconnect in time', () => {

@@ -1,5 +1,6 @@
 import type { Clock } from '../../../../shared/application/ports/clock.js';
 import type { UserId } from '../../../../shared/domain/user-id.js';
+import type { GameVacancy } from '../game-vacancy.js';
 import type { Membership } from '../membership.js';
 import type { RoomEventPublisher } from '../ports/room-event-publisher.js';
 import type { RoomRepository } from '../ports/room-repository.js';
@@ -9,6 +10,7 @@ export class DisconnectUser {
     private readonly rooms: RoomRepository,
     private readonly membership: Membership,
     private readonly publisher: RoomEventPublisher,
+    private readonly vacancy: GameVacancy,
     private readonly clock: Clock,
     private readonly waitGraceMs: number,
   ) {}
@@ -22,7 +24,9 @@ export class DisconnectUser {
     const events = room.setConnected(userId, false, this.clock.now());
     this.rooms.save(room);
     this.publisher.publish(room, events);
-    if (!room.isInGame) {
+    if (room.isInGame) {
+      this.vacancy.settle(room);
+    } else {
       this.membership.leaveWaitingLater(userId, this.waitGraceMs);
     }
   }

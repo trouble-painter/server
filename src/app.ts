@@ -11,6 +11,7 @@ import { WsRoomEventPublisher } from './features/game/adapters/ws/ws-room-event-
 import { GameRecorder } from './features/game/application/game-recorder.js';
 import { GameStartPush } from './features/game/application/game-start-push.js';
 import { Membership } from './features/game/application/membership.js';
+import { GameVacancy } from './features/game/application/game-vacancy.js';
 import { PhaseTimer } from './features/game/application/phase-timer.js';
 import type { GameStartPushSender } from './features/game/application/ports/game-start-push-sender.js';
 import { RecordingRoomEventPublisher } from './features/game/application/recording-room-event-publisher.js';
@@ -117,13 +118,11 @@ export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: Prometheu
     logger,
   );
   const gameHistory = SqliteGameHistoryRepository.open(env.SQLITE_PATH, logger);
-  const publisher = new RecordingRoomEventPublisher(
-    new WsRoomEventPublisher(ws, keywords),
-    new GameRecorder(gameHistory, clock, metrics),
-    logger,
-  );
+  const recorder = new GameRecorder(gameHistory, clock, metrics);
+  const publisher = new RecordingRoomEventPublisher(new WsRoomEventPublisher(ws, keywords), recorder, logger);
   const membership = new Membership(rooms, publisher, scheduler, clock);
   const timer = new PhaseTimer(rooms, publisher, scheduler, clock);
+  const vacancy = new GameVacancy(rooms, scheduler, recorder, timer, clock, env.GAME_DISCONNECT_GRACE_MS);
 
   const notifier = createPushNotifier(env, logger);
   const gameStartPush = new GameStartPush(notifier);
@@ -159,7 +158,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: Prometheu
   registerRoomHandlers(router, {
     createRoom: new CreateRoom(rooms, membership, matchmaking, ids, option),
     joinRoom: new JoinRoom(rooms, membership, matchmaking, publisher),
-    leaveRoom: new LeaveRoom(rooms, membership, publisher, clock),
+    leaveRoom: new LeaveRoom(rooms, membership, publisher, vacancy, clock),
     keywords,
   });
   registerGameHandlers(router, limits, {
@@ -185,11 +184,12 @@ export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: Prometheu
     },
     onMessage: (userId, text) => router.handle(userId, text),
     ...connectionHandlers({
-      connectUser: new ConnectUser(rooms, publisher, scheduler, clock),
+      connectUser: new ConnectUser(rooms, publisher, scheduler, vacancy, clock),
       disconnectUser: new DisconnectUser(
         rooms,
         membership,
         publisher,
+        vacancy,
         clock,
         env.WAIT_DISCONNECT_GRACE_MS,
       ),
@@ -201,9 +201,9 @@ export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: Prometheu
     }),
   });
 
-  new RestoreRooms(rooms, membership, timer, clock, env.RESTORE_GRACE_MS, env.WAIT_DISCONNECT_GRACE_MS).execute();
+  new RestoreRooms(rooms, membership, vacancy, clock, env.RESTORE_GRACE_MS, env.WAIT_DISCONNECT_GRACE_MS).execute();
 
-  const cleanupRooms = new CleanupRooms(rooms, scheduler, clock, env.EMPTY_ROOM_TTL_MS);
+  const cleanupRooms = new CleanupRooms(rooms, scheduler, recorder, clock, env.EMPTY_ROOM_TTL_MS);
   const cleanupTimer = setInterval(() => cleanupRooms.execute(), env.ROOM_CLEANUP_INTERVAL_MS);
 
   http.addHook('preClose', async () => {

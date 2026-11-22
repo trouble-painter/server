@@ -1,13 +1,14 @@
 import type { Clock } from '../../../../shared/application/ports/clock.js';
 import type { Scheduler } from '../../../../shared/application/ports/scheduler.js';
-import { waitLeaveKey } from '../membership.js';
-import { phaseTimerKey } from '../phase-timer.js';
+import { discardRoom } from '../game-vacancy.js';
+import type { GameRecordings } from '../ports/game-recordings.js';
 import type { RoomRepository } from '../ports/room-repository.js';
 
 export class CleanupRooms {
   constructor(
     private readonly rooms: RoomRepository,
     private readonly scheduler: Scheduler,
+    private readonly recordings: GameRecordings,
     private readonly clock: Clock,
     private readonly emptyRoomTtlMs: number,
   ) {}
@@ -19,11 +20,7 @@ export class CleanupRooms {
       if (room.emptySince === null || now - room.emptySince < this.emptyRoomTtlMs) {
         continue;
       }
-      for (const player of room.players) {
-        this.scheduler.cancel(waitLeaveKey(player.userId));
-      }
-      this.scheduler.cancel(phaseTimerKey(room.id));
-      this.rooms.delete(room);
+      discardRoom(this.rooms, this.scheduler, this.recordings, room);
     }
   }
 }

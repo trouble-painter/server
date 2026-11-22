@@ -35,7 +35,7 @@ describe('Room', () => {
   it('starts with the host connected and colored first', () => {
     const room = newRoom();
     expect(room.hostId).toBe(1);
-    expect(room.players).toEqual([{ userId: 1, nickname: NICK, color: PlayerColor.Red, isConnected: true, isReady: false }]);
+    expect(room.players).toEqual([{ userId: 1, nickname: NICK, color: PlayerColor.Red, isConnected: true, hasLeft: false, isReady: false }]);
     expect(room.isInGame).toBe(false);
   });
 

@@ -50,6 +50,7 @@ const EnvSchema = z.object({
   WS_RATE_PER_SEC: positiveInt,
   WS_RATE_BURST: positiveInt,
   WAIT_DISCONNECT_GRACE_MS: positiveInt,
+  GAME_DISCONNECT_GRACE_MS: positiveInt,
   EMPTY_ROOM_TTL_MS: positiveInt,
   ROOM_CLEANUP_INTERVAL_MS: positiveInt,
   GAME_READY_MS: positiveInt,

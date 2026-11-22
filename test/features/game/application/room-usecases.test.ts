@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { GameVacancy } from '../../../../src/features/game/application/game-vacancy.js';
 import { Membership, waitLeaveKey } from '../../../../src/features/game/application/membership.js';
+import { PhaseTimer } from '../../../../src/features/game/application/phase-timer.js';
 import type { RoomEventPublisher } from '../../../../src/features/game/application/ports/room-event-publisher.js';
 import { CleanupRooms } from '../../../../src/features/game/application/usecases/cleanup-rooms.js';
 import { ConnectUser } from '../../../../src/features/game/application/usecases/connect-user.js';
@@ -15,7 +17,7 @@ import type { IdGenerator } from '../../../../src/shared/application/ports/id-ge
 import { Locale } from '../../../../src/shared/domain/locale.js';
 import type { RoomCode } from '../../../../src/shared/domain/room-code.js';
 import type { UserId } from '../../../../src/shared/domain/user-id.js';
-import { FakeClock, FakeScheduler, RecordingQueue } from '../../../support/fakes.js';
+import { FakeClock, FakeScheduler, NO_RECORDINGS, RecordingQueue } from '../../../support/fakes.js';
 import { TEST_OPTION } from '../../../support/game.js';
 
 const NICK = 'nick' as Nickname;
@@ -68,10 +70,11 @@ describe('room use cases', () => {
     queue = new RecordingQueue();
     createRoom = new CreateRoom(rooms, membership, queue, new QueuedIds(['AAAA', 'AAAA', 'BBBB', 'CCCC']), TEST_OPTION);
     joinRoom = new JoinRoom(rooms, membership, queue, publisher);
-    leaveRoom = new LeaveRoom(rooms, membership, publisher, clock);
-    connectUser = new ConnectUser(rooms, publisher, scheduler, clock);
-    disconnectUser = new DisconnectUser(rooms, membership, publisher, clock, GRACE_MS);
-    cleanupRooms = new CleanupRooms(rooms, scheduler, clock, TTL_MS);
+    const vacancy = new GameVacancy(rooms, scheduler, NO_RECORDINGS, new PhaseTimer(rooms, publisher, scheduler, clock), clock, GRACE_MS);
+    leaveRoom = new LeaveRoom(rooms, membership, publisher, vacancy, clock);
+    connectUser = new ConnectUser(rooms, publisher, scheduler, vacancy, clock);
+    disconnectUser = new DisconnectUser(rooms, membership, publisher, vacancy, clock, GRACE_MS);
+    cleanupRooms = new CleanupRooms(rooms, scheduler, NO_RECORDINGS, clock, TTL_MS);
   });
 
   function errorCode(run: () => unknown): GameErrorCode | undefined {
