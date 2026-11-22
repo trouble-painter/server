@@ -1,0 +1,12 @@
+# deploy-backup.sh installs this into /etc/systemd/system/.
+[Unit]
+Description=Daily trouble-painter game history backup
+
+[Timer]
+# Keep the time zone equal to BACKUP_TIME_ZONE in src/backup/retention.ts (it dates the files).
+OnCalendar=*-*-* 04:00:00 Asia/Seoul
+# A run missed while the server was off happens at the next boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

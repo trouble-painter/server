@@ -1,0 +1,14 @@
+# deploy-backup.sh installs this into /etc/systemd/system/. Fix it here and deploy again.
+# Runs the code that make deploy-prod uploaded, once per start (the timer starts it).
+[Unit]
+Description=trouble-painter game history backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/trouble-painter/prod
+Environment=APP_ENV=prod
+EnvironmentFile=/etc/trouble-painter-backup.env
+ExecStart=/opt/node/current/bin/node dist/backup/main.js

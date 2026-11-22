@@ -13,4 +13,8 @@ deploy-prod:
 deploy-monitoring:
 	bash .env/deploy/deploy-monitoring.sh
 
-.PHONY: run deploy-dev deploy-prod deploy-monitoring
+# Install or update the daily game history backup timer on the server
+deploy-backup:
+	bash .env/deploy/deploy-backup.sh
+
+.PHONY: run deploy-dev deploy-prod deploy-monitoring deploy-backup
