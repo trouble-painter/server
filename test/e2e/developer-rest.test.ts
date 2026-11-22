@@ -35,10 +35,11 @@ describe('developer REST', () => {
   });
 
   it('picks up additions and removals without a restart', async () => {
-    writeFileSync(file, 'a\n  b  \n\n');
+    writeFileSync(file, '# owners\na\n  b  # Nell phone\n\n#c\n');
     expect((await check('a')).json()).toEqual({ isDeveloper: true });
     expect((await check('b')).json()).toEqual({ isDeveloper: true });
     expect((await check('c')).json()).toEqual({ isDeveloper: false });
+    expect((await check('#')).json()).toEqual({ isDeveloper: false });
 
     appendFileSync(file, 'c\n');
     expect((await check('c')).json()).toEqual({ isDeveloper: true });
