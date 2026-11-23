@@ -72,7 +72,7 @@ export function buildApp(env: Env, logger: FastifyBaseLogger, metrics: Prometheu
   const clock = new SystemClock();
   const scheduler = new TimeoutScheduler();
   const random = new CryptoRandom();
-  const keywords = JsonKeywordRepository.load(env.KEYWORDS_DIR);
+  const keywords = JsonKeywordRepository.load(env.KEYWORDS_DIR, logger);
   if (env.GAME_STROKES_PER_TURN > MAX_STROKES_PER_TURN) {
     throw new Error(`GAME_STROKES_PER_TURN must be at most ${MAX_STROKES_PER_TURN}`);
   }

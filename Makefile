@@ -13,6 +13,10 @@ deploy-prod:
 sync-dev-uuids:
 	bash .env/deploy/sync-dev-uuids.sh $(ENV)
 
+# Upload only .env/keywords after validating it (no restart); pass ENV=<dev|prod>
+sync-keywords:
+	bash .env/deploy/sync-keywords.sh $(ENV)
+
 # Install or update Prometheus, node_exporter and Grafana on the server
 deploy-monitoring:
 	bash .env/deploy/deploy-monitoring.sh
@@ -21,4 +25,4 @@ deploy-monitoring:
 deploy-backup:
 	bash .env/deploy/deploy-backup.sh
 
-.PHONY: run deploy-dev deploy-prod sync-dev-uuids deploy-monitoring deploy-backup
+.PHONY: run deploy-dev deploy-prod sync-dev-uuids sync-keywords deploy-monitoring deploy-backup
