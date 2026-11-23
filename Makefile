@@ -9,11 +9,11 @@ deploy-dev:
 deploy-prod:
 	bash .env/deploy/deploy.sh prod
 
-# Upload only .env/<env>/dev-uuids.txt (no restart); pass ENV=<dev|prod>
+# Upload only .env/<env>/dev-uuids.txt (no restart); pick the environment interactively or pass ENV=<dev|prod|all>
 sync-dev-uuids:
 	bash .env/deploy/sync-dev-uuids.sh $(ENV)
 
-# Upload only .env/keywords after validating it (no restart); pass ENV=<dev|prod>
+# Upload only .env/keywords after validating it (no restart); pick the environment interactively or pass ENV=<dev|prod|all>
 sync-keywords:
 	bash .env/deploy/sync-keywords.sh $(ENV)
 
